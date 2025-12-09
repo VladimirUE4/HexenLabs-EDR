@@ -1,0 +1,54 @@
+syntax = "proto3";
+
+package hexen.telemetry;
+
+option go_package = "github.com/hexenlabs/edr/server/proto/telemetry";
+
+import "proto/common/common.proto";
+
+message TelemetryBatch {
+    hexen.common.AgentIdentity agent = 1;
+    repeated TelemetryEvent events = 2;
+}
+
+message TelemetryEvent {
+    hexen.common.Timestamp timestamp = 1;
+    string event_id = 2; // Unique ID for deduplication
+    
+    oneof event {
+        ProcessExec process_exec = 3;
+        NetworkConnection network_conn = 4;
+        FileModification file_mod = 5;
+        // Future: Registry, DNS, etc.
+    }
+}
+
+message ProcessExec {
+    int32 pid = 1;
+    int32 ppid = 2;
+    string image_path = 3;
+    string command_line = 4;
+    string user = 5;
+    string parent_image_path = 6;
+    string sha256_hash = 7;
+}
+
+message NetworkConnection {
+    int32 pid = 1;
+    string image_path = 2;
+    string local_address = 3;
+    int32 local_port = 4;
+    string remote_address = 5;
+    int32 remote_port = 6;
+    string protocol = 7; // TCP/UDP
+    string direction = 8; // INBOUND/OUTBOUND
+}
+
+message FileModification {
+    int32 pid = 1;
+    string image_path = 2; // Process that touched the file
+    string file_path = 3;
+    string action = 4; // CREATE, MODIFY, DELETE, RENAME
+    string sha256_hash = 5; // If applicable (e.g. on create/modify close)
+}
+

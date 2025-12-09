@@ -1,0 +1,41 @@
+syntax = "proto3";
+
+package hexen.common;
+
+option go_package = "github.com/hexenlabs/edr/server/proto/common";
+
+// UUID message to avoid string parsing overhead where possible, 
+// though string is often easier. Keeping it simple for now.
+message UUID {
+  string value = 1;
+}
+
+// Standardized timestamp
+message Timestamp {
+  int64 seconds = 1;
+  int32 nanos = 2;
+}
+
+// Agent identity info sent with initial handshake or heartbeat
+message AgentIdentity {
+  string agent_id = 1;      // Unique UUID
+  string hostname = 2;
+  string os_type = 3;       // "windows", "linux", "macos"
+  string os_version = 4;
+  string os_arch = 5;       // "amd64", "arm64"
+  string agent_version = 6;
+  repeated string ip_addresses = 7;
+}
+
+enum Status {
+    STATUS_UNKNOWN = 0;
+    STATUS_SUCCESS = 1;
+    STATUS_ERROR = 2;
+    STATUS_PENDING = 3;
+}
+
+message StatusResponse {
+    Status status = 1;
+    string message = 2; // Optional error message or details
+}
+

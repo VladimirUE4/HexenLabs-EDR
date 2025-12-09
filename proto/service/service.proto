@@ -1,0 +1,22 @@
+syntax = "proto3";
+
+package hexen.service;
+
+option go_package = "github.com/hexenlabs/edr/server/proto/service";
+
+import "proto/common/common.proto";
+import "proto/telemetry/telemetry.proto";
+import "proto/command/command.proto";
+
+service EDRService {
+    // Agent -> Server: Stream telemetry events
+    rpc StreamTelemetry(stream hexen.telemetry.TelemetryBatch) returns (hexen.common.StatusResponse);
+    
+    // Bidirectional stream for C2
+    // Server pushes Commands, Agent pushes CommandResponses
+    rpc CommandChannel(stream hexen.command.CommandResponse) returns (stream hexen.command.Command);
+    
+    // Simple heartbeat to keep connection alive and update status
+    rpc Heartbeat(hexen.common.AgentIdentity) returns (hexen.common.StatusResponse);
+}
+

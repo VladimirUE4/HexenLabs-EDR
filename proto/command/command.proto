@@ -1,0 +1,62 @@
+syntax = "proto3";
+
+package hexen.command;
+
+option go_package = "github.com/hexenlabs/edr/server/proto/command";
+
+import "proto/common/common.proto";
+
+message Command {
+    string command_id = 1;
+    hexen.common.Timestamp created_at = 2;
+    CommandType type = 3;
+    
+    // Commands must be signed by the admin's private key.
+    // The agent verifies this signature before execution.
+    bytes signature = 4; 
+    
+    oneof payload {
+        ShellCommand shell = 5;
+        FileOpCommand file_op = 6;
+        ProcessKillCommand process_kill = 7;
+        IsolationCommand isolation = 8;
+    }
+}
+
+enum CommandType {
+    CMD_UNKNOWN = 0;
+    CMD_SHELL = 1;
+    CMD_FILE_OP = 2;
+    CMD_PROCESS_KILL = 3;
+    CMD_ISOLATION = 4;
+    CMD_AGENT_UPDATE = 5;
+}
+
+message ShellCommand {
+    string script = 1; // PowerShell, Bash, Zsh
+    string shell_type = 2; // "powershell", "cmd", "bash", "sh"
+}
+
+message FileOpCommand {
+    string path = 1;
+    string operation = 2; // "delete", "fetch", "quarantine"
+}
+
+message ProcessKillCommand {
+    int32 pid = 1;
+    bool force = 2;
+}
+
+message IsolationCommand {
+    bool enable = 1; // true = isolate, false = restore
+    repeated string allowed_ips = 2; // IPs allowed during isolation (e.g. C2 IP)
+}
+
+message CommandResponse {
+    string command_id = 1;
+    hexen.common.Status status = 2;
+    string output = 3; // Stdout/Stderr
+    string error_message = 4;
+    hexen.common.Timestamp completed_at = 5;
+}
+
