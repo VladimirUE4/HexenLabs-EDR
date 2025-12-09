@@ -1,0 +1,14 @@
+zig-cache/
+zig-out/
+.vscode/
+.idea/
+*.swp
+*~
+bin/
+tmp/
+*.key
+*.pem
+*.crt
+*.csr
+.env
+
