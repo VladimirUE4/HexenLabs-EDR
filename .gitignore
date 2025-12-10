@@ -12,3 +12,7 @@ tmp/
 *.csr
 .env
 
+# Osquery binary (too large for Git, must be downloaded separately)
+agent/assets/**/osqueryd
+**/osqueryd
+
