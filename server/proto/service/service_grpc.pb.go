@@ -22,9 +22,10 @@ import (
 const _ = grpc.SupportPackageIsVersion9
 
 const (
-	EDRService_StreamTelemetry_FullMethodName = "/hexen.service.EDRService/StreamTelemetry"
-	EDRService_CommandChannel_FullMethodName  = "/hexen.service.EDRService/CommandChannel"
-	EDRService_Heartbeat_FullMethodName       = "/hexen.service.EDRService/Heartbeat"
+	EDRService_StreamTelemetry_FullMethodName    = "/hexen.service.EDRService/StreamTelemetry"
+	EDRService_CommandChannel_FullMethodName     = "/hexen.service.EDRService/CommandChannel"
+	EDRService_GetPendingCommands_FullMethodName = "/hexen.service.EDRService/GetPendingCommands"
+	EDRService_Heartbeat_FullMethodName          = "/hexen.service.EDRService/Heartbeat"
 )
 
 // EDRServiceClient is the client API for EDRService service.
@@ -36,6 +37,8 @@ type EDRServiceClient interface {
 	// Bidirectional stream for C2
 	// Server pushes Commands, Agent pushes CommandResponses
 	CommandChannel(ctx context.Context, opts ...grpc.CallOption) (grpc.BidiStreamingClient[command.CommandResponse, command.Command], error)
+	// Explicit polling method for simplicity in MVP (Agent asks "Do you have work?")
+	GetPendingCommands(ctx context.Context, in *common.AgentIdentity, opts ...grpc.CallOption) (*command.Command, error)
 	// Simple heartbeat to keep connection alive and update status
 	Heartbeat(ctx context.Context, in *common.AgentIdentity, opts ...grpc.CallOption) (*common.StatusResponse, error)
 }
@@ -74,6 +77,16 @@ func (c *eDRServiceClient) CommandChannel(ctx context.Context, opts ...grpc.Call
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type EDRService_CommandChannelClient = grpc.BidiStreamingClient[command.CommandResponse, command.Command]
 
+func (c *eDRServiceClient) GetPendingCommands(ctx context.Context, in *common.AgentIdentity, opts ...grpc.CallOption) (*command.Command, error) {
+	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
+	out := new(command.Command)
+	err := c.cc.Invoke(ctx, EDRService_GetPendingCommands_FullMethodName, in, out, cOpts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 func (c *eDRServiceClient) Heartbeat(ctx context.Context, in *common.AgentIdentity, opts ...grpc.CallOption) (*common.StatusResponse, error) {
 	cOpts := append([]grpc.CallOption{grpc.StaticMethod()}, opts...)
 	out := new(common.StatusResponse)
@@ -93,6 +106,8 @@ type EDRServiceServer interface {
 	// Bidirectional stream for C2
 	// Server pushes Commands, Agent pushes CommandResponses
 	CommandChannel(grpc.BidiStreamingServer[command.CommandResponse, command.Command]) error
+	// Explicit polling method for simplicity in MVP (Agent asks "Do you have work?")
+	GetPendingCommands(context.Context, *common.AgentIdentity) (*command.Command, error)
 	// Simple heartbeat to keep connection alive and update status
 	Heartbeat(context.Context, *common.AgentIdentity) (*common.StatusResponse, error)
 	mustEmbedUnimplementedEDRServiceServer()
@@ -110,6 +125,9 @@ func (UnimplementedEDRServiceServer) StreamTelemetry(grpc.ClientStreamingServer[
 }
 func (UnimplementedEDRServiceServer) CommandChannel(grpc.BidiStreamingServer[command.CommandResponse, command.Command]) error {
 	return status.Error(codes.Unimplemented, "method CommandChannel not implemented")
+}
+func (UnimplementedEDRServiceServer) GetPendingCommands(context.Context, *common.AgentIdentity) (*command.Command, error) {
+	return nil, status.Error(codes.Unimplemented, "method GetPendingCommands not implemented")
 }
 func (UnimplementedEDRServiceServer) Heartbeat(context.Context, *common.AgentIdentity) (*common.StatusResponse, error) {
 	return nil, status.Error(codes.Unimplemented, "method Heartbeat not implemented")
@@ -149,6 +167,24 @@ func _EDRService_CommandChannel_Handler(srv interface{}, stream grpc.ServerStrea
 // This type alias is provided for backwards compatibility with existing code that references the prior non-generic stream type by name.
 type EDRService_CommandChannelServer = grpc.BidiStreamingServer[command.CommandResponse, command.Command]
 
+func _EDRService_GetPendingCommands_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(common.AgentIdentity)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(EDRServiceServer).GetPendingCommands(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: EDRService_GetPendingCommands_FullMethodName,
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(EDRServiceServer).GetPendingCommands(ctx, req.(*common.AgentIdentity))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 func _EDRService_Heartbeat_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(common.AgentIdentity)
 	if err := dec(in); err != nil {
@@ -174,6 +210,10 @@ var EDRService_ServiceDesc = grpc.ServiceDesc{
 	ServiceName: "hexen.service.EDRService",
 	HandlerType: (*EDRServiceServer)(nil),
 	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "GetPendingCommands",
+			Handler:    _EDRService_GetPendingCommands_Handler,
+		},
 		{
 			MethodName: "Heartbeat",
 			Handler:    _EDRService_Heartbeat_Handler,

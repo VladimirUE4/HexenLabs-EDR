@@ -31,6 +31,7 @@ const (
 	CommandType_CMD_PROCESS_KILL CommandType = 3
 	CommandType_CMD_ISOLATION    CommandType = 4
 	CommandType_CMD_AGENT_UPDATE CommandType = 5
+	CommandType_CMD_OSQUERY      CommandType = 6
 )
 
 // Enum value maps for CommandType.
@@ -42,6 +43,7 @@ var (
 		3: "CMD_PROCESS_KILL",
 		4: "CMD_ISOLATION",
 		5: "CMD_AGENT_UPDATE",
+		6: "CMD_OSQUERY",
 	}
 	CommandType_value = map[string]int32{
 		"CMD_UNKNOWN":      0,
@@ -50,6 +52,7 @@ var (
 		"CMD_PROCESS_KILL": 3,
 		"CMD_ISOLATION":    4,
 		"CMD_AGENT_UPDATE": 5,
+		"CMD_OSQUERY":      6,
 	}
 )
 
@@ -94,6 +97,7 @@ type Command struct {
 	//	*Command_FileOp
 	//	*Command_ProcessKill
 	//	*Command_Isolation
+	//	*Command_Osquery
 	Payload       isCommand_Payload `protobuf_oneof:"payload"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -200,6 +204,15 @@ func (x *Command) GetIsolation() *IsolationCommand {
 	return nil
 }
 
+func (x *Command) GetOsquery() *OsqueryCommand {
+	if x != nil {
+		if x, ok := x.Payload.(*Command_Osquery); ok {
+			return x.Osquery
+		}
+	}
+	return nil
+}
+
 type isCommand_Payload interface {
 	isCommand_Payload()
 }
@@ -220,6 +233,10 @@ type Command_Isolation struct {
 	Isolation *IsolationCommand `protobuf:"bytes,8,opt,name=isolation,proto3,oneof"`
 }
 
+type Command_Osquery struct {
+	Osquery *OsqueryCommand `protobuf:"bytes,9,opt,name=osquery,proto3,oneof"`
+}
+
 func (*Command_Shell) isCommand_Payload() {}
 
 func (*Command_FileOp) isCommand_Payload() {}
@@ -227,6 +244,8 @@ func (*Command_FileOp) isCommand_Payload() {}
 func (*Command_ProcessKill) isCommand_Payload() {}
 
 func (*Command_Isolation) isCommand_Payload() {}
+
+func (*Command_Osquery) isCommand_Payload() {}
 
 type ShellCommand struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
@@ -436,11 +455,63 @@ func (x *IsolationCommand) GetAllowedIps() []string {
 	return nil
 }
 
+type OsqueryCommand struct {
+	state          protoimpl.MessageState `protogen:"open.v1"`
+	Query          string                 `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"` // e.g. "SELECT * FROM processes"
+	TimeoutSeconds int32                  `protobuf:"varint,2,opt,name=timeout_seconds,json=timeoutSeconds,proto3" json:"timeout_seconds,omitempty"`
+	unknownFields  protoimpl.UnknownFields
+	sizeCache      protoimpl.SizeCache
+}
+
+func (x *OsqueryCommand) Reset() {
+	*x = OsqueryCommand{}
+	mi := &file_proto_command_command_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OsqueryCommand) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OsqueryCommand) ProtoMessage() {}
+
+func (x *OsqueryCommand) ProtoReflect() protoreflect.Message {
+	mi := &file_proto_command_command_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OsqueryCommand.ProtoReflect.Descriptor instead.
+func (*OsqueryCommand) Descriptor() ([]byte, []int) {
+	return file_proto_command_command_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *OsqueryCommand) GetQuery() string {
+	if x != nil {
+		return x.Query
+	}
+	return ""
+}
+
+func (x *OsqueryCommand) GetTimeoutSeconds() int32 {
+	if x != nil {
+		return x.TimeoutSeconds
+	}
+	return 0
+}
+
 type CommandResponse struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CommandId     string                 `protobuf:"bytes,1,opt,name=command_id,json=commandId,proto3" json:"command_id,omitempty"`
 	Status        common.Status          `protobuf:"varint,2,opt,name=status,proto3,enum=hexen.common.Status" json:"status,omitempty"`
-	Output        string                 `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"` // Stdout/Stderr
+	Output        string                 `protobuf:"bytes,3,opt,name=output,proto3" json:"output,omitempty"` // Stdout/Stderr or JSON result from osquery
 	ErrorMessage  string                 `protobuf:"bytes,4,opt,name=error_message,json=errorMessage,proto3" json:"error_message,omitempty"`
 	CompletedAt   *common.Timestamp      `protobuf:"bytes,5,opt,name=completed_at,json=completedAt,proto3" json:"completed_at,omitempty"`
 	unknownFields protoimpl.UnknownFields
@@ -449,7 +520,7 @@ type CommandResponse struct {
 
 func (x *CommandResponse) Reset() {
 	*x = CommandResponse{}
-	mi := &file_proto_command_command_proto_msgTypes[5]
+	mi := &file_proto_command_command_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -461,7 +532,7 @@ func (x *CommandResponse) String() string {
 func (*CommandResponse) ProtoMessage() {}
 
 func (x *CommandResponse) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_command_command_proto_msgTypes[5]
+	mi := &file_proto_command_command_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -474,7 +545,7 @@ func (x *CommandResponse) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use CommandResponse.ProtoReflect.Descriptor instead.
 func (*CommandResponse) Descriptor() ([]byte, []int) {
-	return file_proto_command_command_proto_rawDescGZIP(), []int{5}
+	return file_proto_command_command_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *CommandResponse) GetCommandId() string {
@@ -516,7 +587,7 @@ var File_proto_command_command_proto protoreflect.FileDescriptor
 
 const file_proto_command_command_proto_rawDesc = "" +
 	"\n" +
-	"\x1bproto/command/command.proto\x12\rhexen.command\x1a\x19proto/common/common.proto\"\xb0\x03\n" +
+	"\x1bproto/command/command.proto\x12\rhexen.command\x1a\x19proto/common/common.proto\"\xeb\x03\n" +
 	"\aCommand\x12\x1d\n" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\x126\n" +
@@ -527,7 +598,8 @@ const file_proto_command_command_proto_rawDesc = "" +
 	"\x05shell\x18\x05 \x01(\v2\x1b.hexen.command.ShellCommandH\x00R\x05shell\x127\n" +
 	"\afile_op\x18\x06 \x01(\v2\x1c.hexen.command.FileOpCommandH\x00R\x06fileOp\x12F\n" +
 	"\fprocess_kill\x18\a \x01(\v2!.hexen.command.ProcessKillCommandH\x00R\vprocessKill\x12?\n" +
-	"\tisolation\x18\b \x01(\v2\x1f.hexen.command.IsolationCommandH\x00R\tisolationB\t\n" +
+	"\tisolation\x18\b \x01(\v2\x1f.hexen.command.IsolationCommandH\x00R\tisolation\x129\n" +
+	"\aosquery\x18\t \x01(\v2\x1d.hexen.command.OsqueryCommandH\x00R\aosqueryB\t\n" +
 	"\apayload\"E\n" +
 	"\fShellCommand\x12\x16\n" +
 	"\x06script\x18\x01 \x01(\tR\x06script\x12\x1d\n" +
@@ -542,21 +614,25 @@ const file_proto_command_command_proto_rawDesc = "" +
 	"\x10IsolationCommand\x12\x16\n" +
 	"\x06enable\x18\x01 \x01(\bR\x06enable\x12\x1f\n" +
 	"\vallowed_ips\x18\x02 \x03(\tR\n" +
-	"allowedIps\"\xd7\x01\n" +
+	"allowedIps\"O\n" +
+	"\x0eOsqueryCommand\x12\x14\n" +
+	"\x05query\x18\x01 \x01(\tR\x05query\x12'\n" +
+	"\x0ftimeout_seconds\x18\x02 \x01(\x05R\x0etimeoutSeconds\"\xd7\x01\n" +
 	"\x0fCommandResponse\x12\x1d\n" +
 	"\n" +
 	"command_id\x18\x01 \x01(\tR\tcommandId\x12,\n" +
 	"\x06status\x18\x02 \x01(\x0e2\x14.hexen.common.StatusR\x06status\x12\x16\n" +
 	"\x06output\x18\x03 \x01(\tR\x06output\x12#\n" +
 	"\rerror_message\x18\x04 \x01(\tR\ferrorMessage\x12:\n" +
-	"\fcompleted_at\x18\x05 \x01(\v2\x17.hexen.common.TimestampR\vcompletedAt*}\n" +
+	"\fcompleted_at\x18\x05 \x01(\v2\x17.hexen.common.TimestampR\vcompletedAt*\x8e\x01\n" +
 	"\vCommandType\x12\x0f\n" +
 	"\vCMD_UNKNOWN\x10\x00\x12\r\n" +
 	"\tCMD_SHELL\x10\x01\x12\x0f\n" +
 	"\vCMD_FILE_OP\x10\x02\x12\x14\n" +
 	"\x10CMD_PROCESS_KILL\x10\x03\x12\x11\n" +
 	"\rCMD_ISOLATION\x10\x04\x12\x14\n" +
-	"\x10CMD_AGENT_UPDATE\x10\x05B/Z-github.com/hexenlabs/edr/server/proto/commandb\x06proto3"
+	"\x10CMD_AGENT_UPDATE\x10\x05\x12\x0f\n" +
+	"\vCMD_OSQUERY\x10\x06B/Z-github.com/hexenlabs/edr/server/proto/commandb\x06proto3"
 
 var (
 	file_proto_command_command_proto_rawDescOnce sync.Once
@@ -571,7 +647,7 @@ func file_proto_command_command_proto_rawDescGZIP() []byte {
 }
 
 var file_proto_command_command_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_proto_command_command_proto_msgTypes = make([]protoimpl.MessageInfo, 6)
+var file_proto_command_command_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
 var file_proto_command_command_proto_goTypes = []any{
 	(CommandType)(0),           // 0: hexen.command.CommandType
 	(*Command)(nil),            // 1: hexen.command.Command
@@ -579,24 +655,26 @@ var file_proto_command_command_proto_goTypes = []any{
 	(*FileOpCommand)(nil),      // 3: hexen.command.FileOpCommand
 	(*ProcessKillCommand)(nil), // 4: hexen.command.ProcessKillCommand
 	(*IsolationCommand)(nil),   // 5: hexen.command.IsolationCommand
-	(*CommandResponse)(nil),    // 6: hexen.command.CommandResponse
-	(*common.Timestamp)(nil),   // 7: hexen.common.Timestamp
-	(common.Status)(0),         // 8: hexen.common.Status
+	(*OsqueryCommand)(nil),     // 6: hexen.command.OsqueryCommand
+	(*CommandResponse)(nil),    // 7: hexen.command.CommandResponse
+	(*common.Timestamp)(nil),   // 8: hexen.common.Timestamp
+	(common.Status)(0),         // 9: hexen.common.Status
 }
 var file_proto_command_command_proto_depIdxs = []int32{
-	7, // 0: hexen.command.Command.created_at:type_name -> hexen.common.Timestamp
+	8, // 0: hexen.command.Command.created_at:type_name -> hexen.common.Timestamp
 	0, // 1: hexen.command.Command.type:type_name -> hexen.command.CommandType
 	2, // 2: hexen.command.Command.shell:type_name -> hexen.command.ShellCommand
 	3, // 3: hexen.command.Command.file_op:type_name -> hexen.command.FileOpCommand
 	4, // 4: hexen.command.Command.process_kill:type_name -> hexen.command.ProcessKillCommand
 	5, // 5: hexen.command.Command.isolation:type_name -> hexen.command.IsolationCommand
-	8, // 6: hexen.command.CommandResponse.status:type_name -> hexen.common.Status
-	7, // 7: hexen.command.CommandResponse.completed_at:type_name -> hexen.common.Timestamp
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	6, // 6: hexen.command.Command.osquery:type_name -> hexen.command.OsqueryCommand
+	9, // 7: hexen.command.CommandResponse.status:type_name -> hexen.common.Status
+	8, // 8: hexen.command.CommandResponse.completed_at:type_name -> hexen.common.Timestamp
+	9, // [9:9] is the sub-list for method output_type
+	9, // [9:9] is the sub-list for method input_type
+	9, // [9:9] is the sub-list for extension type_name
+	9, // [9:9] is the sub-list for extension extendee
+	0, // [0:9] is the sub-list for field type_name
 }
 
 func init() { file_proto_command_command_proto_init() }
@@ -609,6 +687,7 @@ func file_proto_command_command_proto_init() {
 		(*Command_FileOp)(nil),
 		(*Command_ProcessKill)(nil),
 		(*Command_Isolation)(nil),
+		(*Command_Osquery)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -616,7 +695,7 @@ func file_proto_command_command_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_proto_command_command_proto_rawDesc), len(file_proto_command_command_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   6,
+			NumMessages:   7,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

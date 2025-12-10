@@ -27,11 +27,12 @@ var File_proto_service_service_proto protoreflect.FileDescriptor
 
 const file_proto_service_service_proto_rawDesc = "" +
 	"\n" +
-	"\x1bproto/service/service.proto\x12\rhexen.service\x1a\x19proto/common/common.proto\x1a\x1fproto/telemetry/telemetry.proto\x1a\x1bproto/command/command.proto2\xf6\x01\n" +
+	"\x1bproto/service/service.proto\x12\rhexen.service\x1a\x19proto/common/common.proto\x1a\x1fproto/telemetry/telemetry.proto\x1a\x1bproto/command/command.proto2\xc1\x02\n" +
 	"\n" +
 	"EDRService\x12R\n" +
 	"\x0fStreamTelemetry\x12\x1f.hexen.telemetry.TelemetryBatch\x1a\x1c.hexen.common.StatusResponse(\x01\x12L\n" +
-	"\x0eCommandChannel\x12\x1e.hexen.command.CommandResponse\x1a\x16.hexen.command.Command(\x010\x01\x12F\n" +
+	"\x0eCommandChannel\x12\x1e.hexen.command.CommandResponse\x1a\x16.hexen.command.Command(\x010\x01\x12I\n" +
+	"\x12GetPendingCommands\x12\x1b.hexen.common.AgentIdentity\x1a\x16.hexen.command.Command\x12F\n" +
 	"\tHeartbeat\x12\x1b.hexen.common.AgentIdentity\x1a\x1c.hexen.common.StatusResponseB/Z-github.com/hexenlabs/edr/server/proto/serviceb\x06proto3"
 
 var file_proto_service_service_proto_goTypes = []any{
@@ -44,12 +45,14 @@ var file_proto_service_service_proto_goTypes = []any{
 var file_proto_service_service_proto_depIdxs = []int32{
 	0, // 0: hexen.service.EDRService.StreamTelemetry:input_type -> hexen.telemetry.TelemetryBatch
 	1, // 1: hexen.service.EDRService.CommandChannel:input_type -> hexen.command.CommandResponse
-	2, // 2: hexen.service.EDRService.Heartbeat:input_type -> hexen.common.AgentIdentity
-	3, // 3: hexen.service.EDRService.StreamTelemetry:output_type -> hexen.common.StatusResponse
-	4, // 4: hexen.service.EDRService.CommandChannel:output_type -> hexen.command.Command
-	3, // 5: hexen.service.EDRService.Heartbeat:output_type -> hexen.common.StatusResponse
-	3, // [3:6] is the sub-list for method output_type
-	0, // [0:3] is the sub-list for method input_type
+	2, // 2: hexen.service.EDRService.GetPendingCommands:input_type -> hexen.common.AgentIdentity
+	2, // 3: hexen.service.EDRService.Heartbeat:input_type -> hexen.common.AgentIdentity
+	3, // 4: hexen.service.EDRService.StreamTelemetry:output_type -> hexen.common.StatusResponse
+	4, // 5: hexen.service.EDRService.CommandChannel:output_type -> hexen.command.Command
+	4, // 6: hexen.service.EDRService.GetPendingCommands:output_type -> hexen.command.Command
+	3, // 7: hexen.service.EDRService.Heartbeat:output_type -> hexen.common.StatusResponse
+	4, // [4:8] is the sub-list for method output_type
+	0, // [0:4] is the sub-list for method input_type
 	0, // [0:0] is the sub-list for extension type_name
 	0, // [0:0] is the sub-list for extension extendee
 	0, // [0:0] is the sub-list for field type_name

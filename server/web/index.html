@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>HexenLabs EDR Panel</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        body { background-color: #f0f2f5; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+        .navbar { background: linear-gradient(90deg, #1a1a1a 0%, #2d2d2d 100%); }
+        .agent-card { 
+            cursor: pointer; 
+            transition: all 0.2s; 
+            border: none; 
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .agent-card:hover { transform: translateY(-3px); box-shadow: 0 8px 16px rgba(0,0,0,0.1); }
+        .status-dot { height: 10px; width: 10px; border-radius: 50%; display: inline-block; margin-right: 5px; }
+        .bg-online { background-color: #28a745; box-shadow: 0 0 5px #28a745; }
+        .bg-offline { background-color: #dc3545; }
+        .console-output { background-color: #1e1e1e; color: #d4d4d4; font-family: 'Consolas', monospace; font-size: 0.9em; }
+    </style>
+</head>
+<body>
+    <nav class="navbar navbar-dark mb-4">
+        <div class="container">
+            <span class="navbar-brand mb-0 h1"><i class="fas fa-shield-alt me-2"></i>HexenLabs EDR</span>
+            <span class="text-white-50"><small>Control Panel</small></span>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="row">
+            <div class="col-md-12 mb-3 d-flex justify-content-between align-items-center">
+                <h4 class="mb-0">Endpoints</h4>
+                <button onclick="loadAgents()" class="btn btn-sm btn-outline-secondary"><i class="fas fa-sync-alt"></i> Refresh</button>
+            </div>
+        </div>
+        
+        <div id="agents-list" class="row">
+            <!-- Agents will be loaded here -->
+            <div class="col-12 text-center py-5"><div class="spinner-border text-secondary" role="status"></div></div>
+        </div>
+    </div>
+
+    <!-- Agent Details Modal -->
+    <div class="modal fade" id="agentModal" tabindex="-1">
+        <div class="modal-dialog modal-xl modal-dialog-centered">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title"><i class="fas fa-laptop me-2"></i><span id="modal-hostname">Agent</span></h5>
+                    <span class="badge bg-secondary ms-3" id="modal-agent-id"></span>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body p-0">
+                    <div class="row g-0">
+                        <!-- Left: Actions -->
+                        <div class="col-md-4 border-end bg-white p-4">
+                            <h6 class="text-uppercase text-muted mb-3 fs-7">Live Query (Osquery)</h6>
+                            <div class="mb-3">
+                                <textarea id="osquery-input" class="form-control mb-2 font-monospace" rows="4" placeholder="SELECT * FROM processes...">SELECT pid, name, path, cmdline FROM processes ORDER BY start_time DESC LIMIT 5;</textarea>
+                                <button id="btn-run" onclick="runQuery()" class="btn btn-primary w-100">
+                                    <i class="fas fa-play me-1"></i> Execute Query
+                                </button>
+                            </div>
+                            
+                            <h6 class="text-uppercase text-muted mb-3 mt-4 fs-7">Presets</h6>
+                            <div class="d-grid gap-2">
+                                <button class="btn btn-outline-secondary btn-sm text-start" onclick="setQuery('SELECT * FROM users;')">List Users</button>
+                                <button class="btn btn-outline-secondary btn-sm text-start" onclick="setQuery('SELECT * FROM listening_ports;')">Open Ports</button>
+                                <button class="btn btn-outline-secondary btn-sm text-start" onclick="setQuery('SELECT * FROM startup_items;')">Startup Items</button>
+                            </div>
+                        </div>
+                        
+                        <!-- Right: History -->
+                        <div class="col-md-8 p-4 bg-light">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="text-uppercase text-muted mb-0 fs-7">Execution History</h6>
+                                <span id="refresh-indicator" class="badge bg-transparent text-secondary" style="display:none;"><i class="fas fa-circle-notch fa-spin me-1"></i> Live</span>
+                            </div>
+                            <div id="command-history" style="max-height: 600px; overflow-y: auto;">
+                                <!-- Commands loaded here -->
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+    <script>
+        let currentAgentId = null;
+        let refreshInterval = null;
+
+        function setQuery(q) {
+            document.getElementById('osquery-input').value = q;
+        }
+
+        async function loadAgents() {
+            try {
+                const res = await fetch('/api/agents');
+                const agents = await res.json();
+                const container = document.getElementById('agents-list');
+                container.innerHTML = '';
+                
+                if (agents.length === 0) {
+                    container.innerHTML = '<div class="col-12 text-center text-muted py-5">No agents enrolled yet. Start the agent executable.</div>';
+                    return;
+                }
+
+                agents.forEach(agent => {
+                    const lastSeen = new Date(agent.LastSeen);
+                    const isOnline = (new Date() - lastSeen) < 30000; // 30s timeout
+                    const statusClass = isOnline ? 'bg-online' : 'bg-offline';
+                    const statusText = isOnline ? 'Online' : 'Offline';
+                    
+                    const html = `
+                    <div class="col-md-4 mb-3">
+                        <div class="card agent-card h-100" onclick="openAgent('${agent.ID}', '${agent.Hostname}')">
+                            <div class="card-body">
+                                <div class="d-flex justify-content-between align-items-start mb-2">
+                                    <h5 class="card-title mb-0"><i class="fab fa-${agent.OsType === 'linux' ? 'linux' : 'windows'} me-2"></i>${agent.Hostname}</h5>
+                                    <span class="badge bg-light text-dark border">${agent.OsVersion}</span>
+                                </div>
+                                <div class="mb-2">
+                                    <span class="status-dot ${statusClass}"></span> <small class="text-muted fw-bold">${statusText}</small>
+                                </div>
+                                <p class="card-text text-muted small mb-0">
+                                    ID: ${agent.ID.substring(0, 12)}...<br>
+                                    IP: ${agent.IpAddress}<br>
+                                    <i class="far fa-clock me-1"></i> ${lastSeen.toLocaleTimeString()}
+                                </p>
+                            </div>
+                        </div>
+                    </div>`;
+                    container.innerHTML += html;
+                });
+            } catch(e) {
+                console.error(e);
+            }
+        }
+
+        function openAgent(id, hostname) {
+            currentAgentId = id;
+            document.getElementById('modal-agent-id').innerText = id;
+            document.getElementById('modal-hostname').innerText = hostname || 'Agent';
+            const modal = new bootstrap.Modal(document.getElementById('agentModal'));
+            modal.show();
+            
+            // Start fast polling when modal is open
+            loadCommands(id);
+            if(refreshInterval) clearInterval(refreshInterval);
+            refreshInterval = setInterval(() => loadCommands(id), 2000); // 2s refresh
+            
+            document.getElementById('agentModal').addEventListener('hidden.bs.modal', function () {
+                clearInterval(refreshInterval);
+                currentAgentId = null;
+            });
+        }
+
+        async function runQuery() {
+            const btn = document.getElementById('btn-run');
+            const query = document.getElementById('osquery-input').value;
+            if(!query) return;
+
+            btn.disabled = true;
+            btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Queued...';
+
+            await fetch(`/api/agents/${currentAgentId}/osquery`, {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({ query })
+            });
+            
+            // Immediately reload to show PENDING state
+            await loadCommands(currentAgentId);
+            
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-play me-1"></i> Execute Query';
+        }
+
+        async function loadCommands(id) {
+            if (!id) return;
+            const res = await fetch(`/api/agents/${id}/commands`);
+            const cmds = await res.json();
+            const container = document.getElementById('command-history');
+            
+            // Check if any pending tasks to show "Live" indicator
+            const hasPending = cmds.some(c => c.Status === 'PENDING' || c.Status === 'SENT');
+            document.getElementById('refresh-indicator').style.display = hasPending ? 'inline-block' : 'none';
+
+            let html = '';
+            cmds.forEach(cmd => {
+                let badgeClass = 'bg-secondary';
+                let icon = 'fa-clock';
+                if(cmd.Status === 'COMPLETED') { badgeClass = 'bg-success'; icon = 'fa-check'; }
+                else if(cmd.Status === 'ERROR') { badgeClass = 'bg-danger'; icon = 'fa-times'; }
+                else if(cmd.Status === 'SENT') { badgeClass = 'bg-info text-dark'; icon = 'fa-paper-plane'; }
+                else if(cmd.Status === 'PENDING') { badgeClass = 'bg-warning text-dark'; icon = 'fa-hourglass-start'; }
+
+                let resultHtml = '';
+                if (cmd.ResultOutput) {
+                    try {
+                        // Try to format JSON nicely
+                        const json = JSON.parse(cmd.ResultOutput);
+                        resultHtml = JSON.stringify(json, null, 2);
+                    } catch(e) {
+                        resultHtml = cmd.ResultOutput;
+                    }
+                }
+
+                html += `
+                <div class="card mb-3 border-0 shadow-sm">
+                    <div class="card-header bg-white border-bottom-0 d-flex justify-content-between align-items-center">
+                        <div>
+                            <span class="badge ${badgeClass} me-2"><i class="fas ${icon} me-1"></i> ${cmd.Status}</span>
+                            <small class="text-muted font-monospace">${cmd.ID}</small>
+                        </div>
+                        <small class="text-muted">${new Date(cmd.CreatedAt).toLocaleTimeString()}</small>
+                    </div>
+                    <div class="card-body pt-0">
+                        <div class="bg-light p-2 rounded mb-2 border">
+                            <code class="text-dark fw-bold">${cmd.Payload}</code>
+                        </div>
+                        ${cmd.ResultOutput ? `
+                            <pre class="console-output p-3 rounded mb-0 border">${resultHtml}</pre>
+                        ` : ''}
+                        ${cmd.ErrorMessage ? `
+                            <div class="alert alert-danger py-2 px-3 mb-0 mt-2 small"><i class="fas fa-exclamation-triangle me-1"></i> ${cmd.ErrorMessage}</div>
+                        ` : ''}
+                    </div>
+                </div>`;
+            });
+            container.innerHTML = html;
+        }
+
+        // Global refresh
+        setInterval(loadAgents, 5000);
+        loadAgents();
+    </script>
+</body>
+</html>
