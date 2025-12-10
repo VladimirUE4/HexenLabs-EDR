@@ -1,3 +1,9 @@
+
+<div align="center">
+  <img src="https://avatars.githubusercontent.com/u/248723226?s=200&v=4" alt="HexenLabs Logo" width="200"/>
+</div>
+
+
 # HexenLabs EDR
 
 Multi-platform EDR/XDR (Windows, Linux, macOS) with Zig agent and web administration panel.
