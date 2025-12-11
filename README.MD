@@ -115,7 +115,7 @@ make build-agent build-server
 
 ## Roadmap
 
-### Phase 1: Core Features (Current)
+### Phase 1: base Features (Current)
 - ✅ Agent deployment and heartbeat
 - ✅ Osquery integration
 - ✅ Web administration panel
@@ -123,6 +123,7 @@ make build-agent build-server
 - ✅ PostgreSQL persistence
 
 ### Phase 2: Security & Hardening 
+- [ ] mTLS
 - [ ] Ed25519 command signing
 - [ ] Agent auto-update mechanism (hot reload)
 - [ ] Self-protection (prevent agent termination)
