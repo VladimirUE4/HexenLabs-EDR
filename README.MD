@@ -106,13 +106,16 @@ make build-agent build-server
 - [ ] Self-protection (prevent agent termination)
 - [ ] Certificate rotation automation
 - [ ] Audit logging (immutable)
+- [ ] Incident Response Team
+- [ ] Quarantine
+- [ ] YARA rule engine integration
+- [ ] Sigma rule support
 
 ### Phase 3: Detection Engine 
 - [ ] Real-time process monitoring
 - [ ] Network connection tracking
 - [ ] File integrity monitoring (FIM)
-- [ ] YARA rule engine integration
-- [ ] Sigma rule support
+- [ ] Forensics
 - [ ] Behavioral detection (ML-based)
 
 ### Phase 4: Response Capabilities 
@@ -123,7 +126,7 @@ make build-agent build-server
 - [ ] Automated incident response playbooks
 
 ### Phase 5: Advanced Features 
-- [ ] Kernel-level monitoring (eBPF on Linux, Kernel Driver on Windows, ESF on macOS)
+- [ ] Kernel-level monitoring (eBPF on Linux, Kernel Driver on Windows, ESF on macOS) NOT POSSIBLE WITH ZIG FOR NOW ?
 - [ ] Memory scanning
 - [ ] Threat intelligence integration
 - [ ] Multi-tenant support
