@@ -6,7 +6,7 @@ import (
 	"io"
 	"log"
 	"net"
-
+	"os"
 	"time"
 
 	"google.golang.org/grpc"
@@ -14,6 +14,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/hexenlabs/edr/server/api"
+	"github.com/hexenlabs/edr/server/auth"
 	"github.com/hexenlabs/edr/server/database"
 	pb_common "github.com/hexenlabs/edr/server/proto/common"
 	pb_service "github.com/hexenlabs/edr/server/proto/service"
@@ -21,13 +22,21 @@ import (
 	pb_command "github.com/hexenlabs/edr/server/proto/command"
 )
 
+func getEnvOrDefault(key, defaultValue string) string {
+	if value := os.Getenv(key); value != "" {
+		return value
+	}
+	return defaultValue
+}
+
 // Server configuration
 const (
 	port = ":50051"
 	certFile = "../pki/certs/server.crt"
 	keyFile  = "../pki/certs/server.key"
 	// Default to local postgres for dev
-	dsn = "host=localhost user=postgres password=postgres dbname=hexen_edr port=5432 sslmode=disable TimeZone=UTC"
+	// In production, load from environment variables
+	dsn = getEnvOrDefault("DATABASE_DSN", "host=localhost user=postgres password=postgres dbname=hexen_edr port=5432 sslmode=disable TimeZone=UTC")
 )
 
 // server implements the EDRServiceServer interface
@@ -244,7 +253,29 @@ func main() {
 	go func() {
 		fmt.Println("Starting Web Panel on :8080...")
 		r := gin.Default()
-		api.RegisterRoutes(r)
+		
+		// Public routes (auth)
+		r.POST("/api/auth/login", auth.Login)
+		r.POST("/api/auth/refresh", auth.Refresh)
+		
+		// Protected routes
+		protected := r.Group("/api")
+		protected.Use(auth.AuthMiddleware())
+		{
+			protected.GET("/auth/me", auth.Me)
+			protected.GET("/agents", api.GetAgents)
+			protected.POST("/agents/:id/osquery", api.QueueOsqueryCommand)
+			protected.GET("/agents/:id/commands", api.GetAgentCommands)
+		}
+		
+		// Agent routes (no auth for now, but should use mTLS)
+		agentRoutes := r.Group("/api")
+		{
+			agentRoutes.POST("/heartbeat", api.AgentHeartbeat)
+			agentRoutes.GET("/agents/:id/tasks/next", api.GetNextTask)
+			agentRoutes.POST("/agents/:id/tasks/:cmd_id/result", api.PostTaskResult)
+		}
+		
 		if err := r.Run(":8080"); err != nil {
 			log.Fatalf("Failed to run HTTP server: %v", err)
 		}

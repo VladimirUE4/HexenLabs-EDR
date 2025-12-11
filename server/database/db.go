@@ -3,6 +3,7 @@ package database
 import (
 	"fmt"
 	"log"
+	"os"
 	"time"
 
 	"gorm.io/driver/postgres"
@@ -18,21 +19,24 @@ type AgentModel struct {
 	OsVersion    string
 	IpAddress    string
 	LastSeen     time.Time `gorm:"index"`
-	Status       string
+	Status       string    `gorm:"index"`
+	AgentName    string    `gorm:"column:agent_name"`
+	AgentGroup   string    `gorm:"column:agent_group;index"`
 	CreatedAt    time.Time
 }
 
 // CommandModel represents a command to be executed or executed
 type CommandModel struct {
-	ID             string    `gorm:"primaryKey"`
-	AgentID        string    `gorm:"index"`
+	ID             string     `gorm:"primaryKey"`
+	AgentID        string     `gorm:"index:idx_agent_status_created"`
 	Type           string
-	Payload        string    // JSON payload or raw string
-	Status         string    // PENDING, SENT, COMPLETED, ERROR
+	Payload        string     // JSON payload or raw string
+	Status         string     `gorm:"index:idx_agent_status_created"` // PENDING, SENT, COMPLETED, ERROR
 	ResultOutput   string
 	ErrorMessage   string
-	CreatedAt      time.Time
+	CreatedAt      time.Time  `gorm:"index:idx_agent_status_created"`
 	CompletedAt    *time.Time
+	DeletedAt      *time.Time `gorm:"index"` // Soft delete
 }
 
 // Global DB instance
@@ -59,13 +63,19 @@ func InitDB(dsn string) {
 		log.Fatalf("Failed to connect to database: %v", err)
 	}
 
-	// AutoMigrate is convenient for dev, but in prod use migration files (e.g. golang-migrate)
-	// We use it here to set up the schema quickly.
-	err = DB.AutoMigrate(&AgentModel{}, &CommandModel{})
-	if err != nil {
-		log.Fatalf("Failed to migrate database: %v", err)
+	// In production, use golang-migrate for versioned migrations
+	// For dev, AutoMigrate is acceptable but not recommended for prod
+	// Check if we're in dev mode (you can set MIGRATE_MODE=auto env var)
+	migrateMode := os.Getenv("MIGRATE_MODE")
+	if migrateMode == "auto" || migrateMode == "" {
+		err = DB.AutoMigrate(&AgentModel{}, &CommandModel{})
+		if err != nil {
+			log.Fatalf("Failed to migrate database: %v", err)
+		}
+		fmt.Println("Database connection established and schema migrated (AutoMigrate).")
+	} else {
+		fmt.Println("Database connection established. Run migrations manually with: migrate -path migrations -database \"DSN\" up")
 	}
-	
-	fmt.Println("Database connection established and schema migrated.")
 }
+
 

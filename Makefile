@@ -1,24 +1,52 @@
-.PHONY: all clean proto build-agent build-server
+.PHONY: build-backend build-gateway build-agent run-backend run-gateway run-all help
 
-PROTOC_GEN_GO := $(shell which protoc-gen-go)
-PROTOC_GEN_GO_GRPC := $(shell which protoc-gen-go-grpc)
+# Build targets
+build-backend:
+	cd server && go build -o bin/backend cmd/backend/main.go
 
-all: proto build-agent build-server
-
-proto:
-	@echo "Generating Protobuf code..."
-	@mkdir -p server/proto
-	./tools/gen_proto.sh
+build-gateway:
+	cd server && go build -o bin/gateway cmd/gateway/main.go
 
 build-agent:
-	@echo "Building Agent..."
-	cd agent && zig build
+	cd agent && zig build -Doptimize=ReleaseSafe
 
-build-server:
-	@echo "Building Server..."
-	cd server && go build -o bin/server main.go
+build-all: build-backend build-gateway build-agent
 
+# Run targets
+run-backend:
+	cd server && go run cmd/backend/main.go
+
+run-gateway:
+	cd server && PORT=8443 go run cmd/gateway/main.go
+
+run-all:
+	@echo "Starting Backend API and Agent Gateway..."
+	@echo "Backend API: http://localhost:8080"
+	@echo "Agent Gateway: http://localhost:8443"
+	@trap 'kill 0' EXIT; \
+	cd server && go run cmd/backend/main.go & \
+	cd server && PORT=8443 go run cmd/gateway/main.go & \
+	wait
+
+# Development
+dev-backend:
+	cd server && go run cmd/backend/main.go
+
+dev-gateway:
+	cd server && PORT=8443 go run cmd/gateway/main.go
+
+# Clean
 clean:
-	rm -rf agent/zig-out agent/zig-cache
-	rm -f server/bin/server
+	rm -rf server/bin/*
+	rm -rf agent/zig-out/*
 
+help:
+	@echo "Available targets:"
+	@echo "  build-backend   - Build Backend API"
+	@echo "  build-gateway  - Build Agent Gateway"
+	@echo "  build-agent    - Build Zig agent"
+	@echo "  build-all      - Build all components"
+	@echo "  run-backend    - Run Backend API (port 8080)"
+	@echo "  run-gateway    - Run Agent Gateway (port 8443)"
+	@echo "  run-all        - Run both services in parallel"
+	@echo "  clean          - Clean build artifacts"

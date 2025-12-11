@@ -3,7 +3,10 @@
   <img src="https://avatars.githubusercontent.com/u/248723226?s=200&v=4" alt="HexenLabs Logo" width="200"/>
 </div>
 
+<<<<<<< HEAD
 
+=======
+>>>>>>> af3cfb1 (refactor: reorganize Makefile and enhance build process)
 # HexenLabs EDR
 
 Multi-platform EDR/XDR (Windows, Linux, macOS) with Zig agent and web administration panel.
@@ -27,22 +30,38 @@ docker run --name postgres-edr -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=hexe
 createdb hexen_edr
 ```
 
-### 2. Server (Backend + Web Panel)
+### 2. Server (Backend API + Agent Gateway)
 
 ```bash
 cd server
 go mod download
-go build -o bin/server main.go
 
-# Configure DB connection in main.go if needed (DSN)
-./bin/server
+# Option A: Using Makefile (recommended)
+make run-all
+
+# Option B: Manual (2 terminals)
+# Terminal 1: Backend API
+go run cmd/backend/main.go
+
+# Terminal 2: Agent Gateway
+PORT=8443 go run cmd/gateway/main.go
 ```
 
-Server starts on:
-- **gRPC** : `:50051` (mTLS)
-- **Web Panel** : `http://localhost:8080`
+Servers start on:
+- **Backend API** : `http://localhost:8080/api` (Frontend)
+- **Agent Gateway** : `http://localhost:8443/api` (Agents)
 
-### 3. Agent
+### 3. Frontend (React)
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Frontend runs on `http://localhost:3000` and proxies API requests to the server.
+
+### 4. Agent
 
 ```bash
 # Download osquery (see agent/assets/README.md)
@@ -62,16 +81,23 @@ The agent will automatically appear in the web panel.
 
 ## Usage
 
-1. Open `http://localhost:8080`
-2. Click on an agent
-3. Execute Osquery SQL queries (e.g., `SELECT * FROM processes;`)
-4. View results in real-time
+1. Start both servers (`make run-all` in root directory, or manually in 2 terminals)
+2. Start the frontend (`npm run dev` in `frontend/` directory)
+3. Open `http://localhost:3000` in your browser
+4. Login with `admin` / `admin` (change in production!)
+5. Click on an agent
+6. Execute Osquery SQL queries (e.g., `SELECT * FROM processes;`)
+7. View results in real-time
+
+**Note**: Agents must be configured to connect to port **8443** (Agent Gateway), not 8080.
 
 ## Architecture
 
-- **Agent** : Zig, self-contained (embeds osquery), HTTP communication
-- **Server** : Go, gRPC + REST API, PostgreSQL
-- **Panel** : Vanilla HTML/JS (Bootstrap)
+- **Agent** : Zig, self-contained (embeds osquery), HTTP communication (port 8443)
+- **Backend API** : Go, REST API for frontend (port 8080), JWT auth
+- **Agent Gateway** : Go, REST API for agents (port 8443), mTLS (to be implemented)
+- **Frontend** : React + TypeScript + Vite
+- **Database** : PostgreSQL (shared)
 
 ## Security
 

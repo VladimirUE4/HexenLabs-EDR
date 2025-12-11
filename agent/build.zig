@@ -12,6 +12,19 @@ pub fn build(b: *std.Build) void {
             .optimize = optimize,
         }),
     });
+    
+    // Add embedded osquery binary
+    exe.addAnonymousModule("osquery", .{
+        .root_source_file = b.path("src/osquery.zig"),
+    });
+    
+    exe.addAnonymousModule("config", .{
+        .root_source_file = b.path("src/config.zig"),
+    });
+    
+    exe.addAnonymousModule("validation", .{
+        .root_source_file = b.path("src/validation.zig"),
+    });
 
     b.installArtifact(exe);
 

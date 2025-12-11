@@ -11,7 +11,16 @@ import (
 
 
 func AgentHeartbeat(c *gin.Context) {
-	var req database.AgentModel
+	var req struct {
+		ID         string `json:"ID" binding:"required"`
+		Hostname   string `json:"Hostname" binding:"required"`
+		OsType     string `json:"OsType" binding:"required"`
+		IpAddress  string `json:"IpAddress"`
+		OsVersion  string `json:"OsVersion"`
+		Name       string `json:"Name"`
+		Group      string `json:"Group"`
+	}
+	
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
@@ -20,16 +29,31 @@ func AgentHeartbeat(c *gin.Context) {
 	// Update or Create
 	var agent database.AgentModel
 	if err := database.DB.First(&agent, "id = ?", req.ID).Error; err != nil {
-		// Create
-		req.CreatedAt = time.Now()
-		req.LastSeen = time.Now()
-		req.Status = "ONLINE"
-		database.DB.Create(&req)
+		// Create new agent
+		newAgent := database.AgentModel{
+			ID:         req.ID,
+			Hostname:   req.Hostname,
+			OsType:     req.OsType,
+			OsVersion:  req.OsVersion,
+			IpAddress:  req.IpAddress,
+			AgentName:  req.Name,
+			AgentGroup: req.Group,
+			LastSeen:   time.Now(),
+			Status:     "ONLINE",
+			CreatedAt:  time.Now(),
+		}
+		database.DB.Create(&newAgent)
 	} else {
-		// Update
+		// Update existing
 		agent.LastSeen = time.Now()
 		agent.Status = "ONLINE"
-		agent.IpAddress = req.IpAddress // Update IP if changed
+		agent.IpAddress = req.IpAddress
+		if req.Name != "" {
+			agent.AgentName = req.Name
+		}
+		if req.Group != "" {
+			agent.AgentGroup = req.Group
+		}
 		database.DB.Save(&agent)
 	}
 	c.Status(http.StatusOK)

@@ -32,3 +32,4 @@ zig build -Doptimize=ReleaseSafe
 
 The binary will be at `zig-out/bin/hexen-agent`.
 
+

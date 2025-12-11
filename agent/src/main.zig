@@ -1,13 +1,8 @@
 const std = @import("std");
 const net = std.net;
 const osquery = @import("osquery.zig");
-
-// Configuration
-const SERVER_IP = "127.0.0.1";
-const SERVER_PORT = 8080;
-const AGENT_ID = "agent-linux-001";
-const HEARTBEAT_INTERVAL_NS = 10 * std.time.ns_per_s;
-const POLLING_INTERVAL_NS = 3 * std.time.ns_per_s;
+const config = @import("config.zig");
+const validation = @import("validation.zig");
 
 pub fn main() !void {
     var gpa = std.heap.GeneralPurposeAllocator(.{}){};
@@ -15,6 +10,38 @@ pub fn main() !void {
     const allocator = gpa.allocator();
 
     std.debug.print("HexenLabs EDR Agent starting...\n", .{});
+
+    // Parse command line arguments
+    var args = try std.process.argsAlloc(allocator);
+    defer std.process.argsFree(allocator, args);
+
+    var agent_name: ?[]const u8 = null;
+    var agent_group: ?[]const u8 = null;
+    var server_ip: ?[]const u8 = null;
+
+    var i: usize = 1;
+    while (i < args.len) : (i += 1) {
+        if (std.mem.eql(u8, args[i], "--name") and i + 1 < args.len) {
+            agent_name = args[i + 1];
+            i += 1;
+        } else if (std.mem.eql(u8, args[i], "--group") and i + 1 < args.len) {
+            agent_group = args[i + 1];
+            i += 1;
+        } else if (std.mem.eql(u8, args[i], "--server") and i + 1 < args.len) {
+            server_ip = args[i + 1];
+            i += 1;
+        }
+    }
+
+    // Load configuration
+    var cfg = try config.loadConfig(allocator, agent_name, agent_group, server_ip);
+    defer cfg.deinit();
+
+    std.debug.print("Agent Config:\n", .{});
+    std.debug.print("  ID: {s}\n", .{cfg.agent_id});
+    std.debug.print("  Name: {s}\n", .{cfg.agent_name});
+    std.debug.print("  Group: {s}\n", .{cfg.agent_group});
+    std.debug.print("  Server: {s}:{d}\n", .{ cfg.server_ip, cfg.server_port });
 
     // 1. Initialize Tools
     if (osquery.ensureInstalled(allocator)) |path| {
@@ -24,7 +51,7 @@ pub fn main() !void {
         return;
     }
 
-    std.debug.print("Agent Ready. ID: {s}\n", .{AGENT_ID});
+    std.debug.print("Agent Ready. ID: {s}\n", .{cfg.agent_id});
 
     var last_heartbeat: i128 = 0;
 
@@ -32,11 +59,17 @@ pub fn main() !void {
         const now = std.time.nanoTimestamp();
 
         // --- Task A: Heartbeat ---
-        if (now - last_heartbeat > HEARTBEAT_INTERVAL_NS) {
-            const payload = "{\"ID\": \"" ++ AGENT_ID ++ "\", \"Hostname\": \"linux-dev\", \"OsType\": \"linux\", \"IpAddress\": \"127.0.0.1\"}";
+        if (now - last_heartbeat > cfg.heartbeat_interval_ns) {
+            const hostname = std.os.getenv("HOSTNAME") orelse "unknown";
+            const payload = try std.fmt.allocPrint(
+                allocator,
+                "{{\"ID\":\"{s}\",\"Hostname\":\"{s}\",\"OsType\":\"linux\",\"IpAddress\":\"127.0.0.1\",\"Name\":\"{s}\",\"Group\":\"{s}\"}}",
+                .{ cfg.agent_id, hostname, cfg.agent_name, cfg.agent_group },
+            );
+            defer allocator.free(payload);
 
             // Raw HTTP POST
-            if (sendHttp(allocator, .POST, "/api/heartbeat", payload)) |response| {
+            if (sendHttp(allocator, cfg.server_ip, cfg.server_port, .POST, "/api/heartbeat", payload)) |response| {
                 defer allocator.free(response);
                 std.debug.print("Heartbeat OK.\n", .{});
                 last_heartbeat = now;
@@ -47,8 +80,10 @@ pub fn main() !void {
 
         // --- Task B: Poll for Tasks ---
         {
-            const path = "/api/agents/" ++ AGENT_ID ++ "/tasks/next";
-            if (sendHttp(allocator, .GET, path, null)) |response| {
+            const path = try std.fmt.allocPrint(allocator, "/api/agents/{s}/tasks/next", .{cfg.agent_id});
+            defer allocator.free(path);
+
+            if (sendHttp(allocator, cfg.server_ip, cfg.server_port, .GET, path, null)) |response| {
                 defer allocator.free(response);
 
                 // Parse Body (Find \r\n\r\n)
@@ -61,6 +96,18 @@ pub fn main() !void {
                         if (getJsonField(body, "Payload")) |query| {
                             // Extract ID
                             const task_id = getJsonField(body, "ID") orelse "unknown";
+
+                            // VALIDATE QUERY BEFORE EXECUTION
+                            validation.validateOsqueryQuery(query) catch |err| {
+                                std.debug.print("Query validation failed: {}\n", .{err});
+                                // Send error result
+                                const res_path = try std.fmt.allocPrint(allocator, "/api/agents/{s}/tasks/{s}/result", .{ cfg.agent_id, task_id });
+                                defer allocator.free(res_path);
+                                const error_payload = try std.fmt.allocPrint(allocator, "{{\"output_b64\":\"\",\"error\":\"Query validation failed: {s}\"}}", .{@errorName(err)});
+                                defer allocator.free(error_payload);
+                                _ = sendHttp(allocator, cfg.server_ip, cfg.server_port, .POST, res_path, error_payload) catch {};
+                                continue;
+                            };
 
                             std.debug.print("Executing Osquery: {s}\n", .{query});
 
@@ -80,14 +127,14 @@ pub fn main() !void {
                             _ = std.base64.standard.Encoder.encode(b64_buf, exec_res.output);
 
                             // Send Result (POST)
-                            const res_path = try std.fmt.allocPrint(allocator, "/api/agents/{s}/tasks/{s}/result", .{ AGENT_ID, task_id });
+                            const res_path = try std.fmt.allocPrint(allocator, "/api/agents/{s}/tasks/{s}/result", .{ cfg.agent_id, task_id });
                             defer allocator.free(res_path);
 
                             // Construct JSON with B64
                             const res_payload = try std.fmt.allocPrint(allocator, "{{\"output_b64\": \"{s}\", \"error\": \"\"}}", .{b64_buf});
                             defer allocator.free(res_payload);
 
-                            if (sendHttp(allocator, .POST, res_path, res_payload)) |res_ack| {
+                            if (sendHttp(allocator, cfg.server_ip, cfg.server_port, .POST, res_path, res_payload)) |res_ack| {
                                 allocator.free(res_ack);
                             } else |_| {}
                         }
@@ -98,18 +145,15 @@ pub fn main() !void {
             }
         }
 
-        // Busy Wait Loop
-        var i: u64 = 0;
-        while (i < 50000000) : (i += 1) {
-            std.mem.doNotOptimizeAway(i);
-        }
+        // Sleep instead of busy wait
+        std.time.sleep(cfg.polling_interval_ns);
     }
 }
 
 const Method = enum { GET, POST };
 
-fn sendHttp(allocator: std.mem.Allocator, method: Method, path: []const u8, body: ?[]const u8) ![]u8 {
-    const peer = try net.Address.parseIp4(SERVER_IP, SERVER_PORT);
+fn sendHttp(allocator: std.mem.Allocator, server_ip: []const u8, server_port: u16, method: Method, path: []const u8, body: ?[]const u8) ![]u8 {
+    const peer = try net.Address.parseIp4(server_ip, server_port);
     const stream = try net.tcpConnectToAddress(peer);
     defer stream.close();
 
@@ -123,7 +167,7 @@ fn sendHttp(allocator: std.mem.Allocator, method: Method, path: []const u8, body
     // Send Request (Manual write to avoid writer() API flux)
     // const writer_obj = stream.writer();
 
-    const header = try std.fmt.allocPrint(allocator, "{s} {s} HTTP/1.0\r\nHost: {s}\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{ method_str, path, SERVER_IP, content_len });
+    const header = try std.fmt.allocPrint(allocator, "{s} {s} HTTP/1.0\r\nHost: {s}\r\nContent-Length: {d}\r\nConnection: close\r\n\r\n", .{ method_str, path, server_ip, content_len });
     defer allocator.free(header);
 
     try stream.writeAll(header);
