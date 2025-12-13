@@ -10,13 +10,27 @@ interface AgentModalProps {
 }
 
 interface Command {
-  ID: string
-  Payload: string
-  Status: string
-  ResultOutput: string
-  ErrorMessage: string
-  CreatedAt: string
+  id?: string
+  ID?: string
+  payload?: string
+  Payload?: string
+  status?: string
+  Status?: string
+  result_output?: string
+  ResultOutput?: string
+  error_message?: string
+  ErrorMessage?: string
+  created_at?: string
+  CreatedAt?: string
 }
+
+// Helper functions to access command properties (handles both snake_case and PascalCase)
+const getCommandId = (cmd: Command) => cmd.ID || cmd.id || ''
+const getCommandPayload = (cmd: Command) => cmd.Payload || cmd.payload || ''
+const getCommandStatus = (cmd: Command) => cmd.Status || cmd.status || 'UNKNOWN'
+const getCommandResultOutput = (cmd: Command) => cmd.ResultOutput || cmd.result_output || ''
+const getCommandErrorMessage = (cmd: Command) => cmd.ErrorMessage || cmd.error_message || ''
+const getCommandCreatedAt = (cmd: Command) => cmd.CreatedAt || cmd.created_at || ''
 
 export default function AgentModal({ agent, onClose }: AgentModalProps) {
   const [commands, setCommands] = useState<Command[]>([])
@@ -131,7 +145,7 @@ export default function AgentModal({ agent, onClose }: AgentModalProps) {
             <div className="section-header">
               <i className="fas fa-history"></i>
               <h4>Execution History</h4>
-              {commands.some(c => c.Status === 'PENDING' || c.Status === 'SENT') && (
+              {commands.some(c => getCommandStatus(c) === 'PENDING' || getCommandStatus(c) === 'SENT') && (
                 <span className="live-indicator">
                   <i className="fas fa-circle"></i> Live
                 </span>
@@ -142,55 +156,62 @@ export default function AgentModal({ agent, onClose }: AgentModalProps) {
                 <div className="empty-commands">No commands executed yet</div>
               ) : (
                 commands.map((cmd) => {
+                  const cmdId = getCommandId(cmd)
+                  const cmdStatus = getCommandStatus(cmd)
+                  const cmdPayload = getCommandPayload(cmd)
+                  const cmdResultOutput = getCommandResultOutput(cmd)
+                  const cmdErrorMessage = getCommandErrorMessage(cmd)
+                  const cmdCreatedAt = getCommandCreatedAt(cmd)
+
                   let statusClass = 'status-pending'
                   let statusIcon = 'fa-clock'
-                  if (cmd.Status === 'COMPLETED') {
+                  if (cmdStatus === 'COMPLETED') {
                     statusClass = 'status-completed'
                     statusIcon = 'fa-check-circle'
-                  } else if (cmd.Status === 'ERROR') {
+                  } else if (cmdStatus === 'ERROR') {
                     statusClass = 'status-error'
                     statusIcon = 'fa-times-circle'
-                  } else if (cmd.Status === 'SENT') {
+                  } else if (cmdStatus === 'SENT') {
                     statusClass = 'status-sent'
                     statusIcon = 'fa-paper-plane'
                   }
 
                   let resultHtml = ''
-                  if (cmd.ResultOutput) {
+                  if (cmdResultOutput) {
                     try {
-                      const json = JSON.parse(cmd.ResultOutput)
+                      const json = JSON.parse(cmdResultOutput)
                       resultHtml = JSON.stringify(json, null, 2)
                     } catch (e) {
-                      resultHtml = cmd.ResultOutput
+                      resultHtml = cmdResultOutput
                     }
                     // Sanitize HTML to prevent XSS
                     resultHtml = DOMPurify.sanitize(resultHtml, { ALLOWED_TAGS: [] })
                   }
 
                   return (
-                    <div key={cmd.ID} className="command-card-xdr">
+                    <div key={cmdId} className="command-card-xdr">
                       <div className="command-header-xdr">
                         <div className="command-status">
                           <span className={`status-badge-xdr ${statusClass}`}>
                             <i className={`fas ${statusIcon}`}></i>
-                            {cmd.Status}
+                            {cmdStatus}
                           </span>
-                          <span className="command-id">{cmd.ID.substring(0, 12)}...</span>
+                          <span className="command-id">{cmdId.substring(0, 12)}...</span>
                         </div>
                         <span className="command-time">
-                          {new Date(cmd.CreatedAt).toLocaleTimeString()}
+                          {cmdCreatedAt ? new Date(cmdCreatedAt).toLocaleTimeString() : ''}
                         </span>
                       </div>
                       <div className="command-payload-xdr">
-                        <code>{cmd.Payload}</code>
+                        <code>{cmdPayload}</code>
                       </div>
-                      {cmd.ResultOutput && (
+                      {cmdResultOutput && (
                         <pre className="command-output-xdr" dangerouslySetInnerHTML={{ __html: resultHtml }}></pre>
                       )}
-                      {cmd.ErrorMessage && (
+                      {cmdErrorMessage && (
                         <div className="command-error-xdr">
                           <i className="fas fa-exclamation-triangle"></i>
-                          {DOMPurify.sanitize(cmd.ErrorMessage, { ALLOWED_TAGS: [] })}
+                          {DOMPurify.sanitize(cmdErrorMessage, { ALLOWED_TAGS: [] })}
                         </div>
                       )}
                     </div>

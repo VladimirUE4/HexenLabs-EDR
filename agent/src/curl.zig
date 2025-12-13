@@ -93,3 +93,4 @@ pub const CurlClient = struct {
         return self.response_buffer.items;
     }
 };
+

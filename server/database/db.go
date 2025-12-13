@@ -57,3 +57,4 @@ func Connect() {
 // Initialize DB on package load or explicitly? 
 // For now, let's export Init/Connect and call it from main.
 // Actually, to make handlers work immediately (since they use global DB), we need to ensure Connect is called.
+
