@@ -25,9 +25,9 @@ import (
 const (
 	grpcPort = ":50051"
 	httpPort = ":8080"
-	caFile   = "../pki/certs/ca.crt"
-	certFile = "../pki/certs/server.crt"
-	keyFile  = "../pki/certs/server.key"
+	caFile   = "../../pki/certs/ca.crt"
+	certFile = "../../pki/certs/server.crt"
+	keyFile  = "../../pki/certs/server.key"
 )
 
 // server implements the EDRServiceServer interface
