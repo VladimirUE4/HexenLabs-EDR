@@ -1,135 +1,161 @@
-import { Agent, getAgentId, getAgentHostname, getAgentOsType, getAgentStatus, getAgentLastSeen } from '../App'
-import './Dashboard.css'
+import { useEffect, useState } from 'react';
+import axios from 'axios';
+import { 
+  AreaChart, Area, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer,
+  PieChart, Pie, Cell, Legend 
+} from 'recharts';
+import { Users, Activity, AlertTriangle, WifiOff } from 'lucide-react';
+import './DashboardNew.css';
+import { Agent, getAgentStatus, getAgentOsType } from '../App';
 
 interface DashboardProps {
-  agents: Agent[]
+  agents: Agent[];
 }
 
 export default function Dashboard({ agents }: DashboardProps) {
-  const onlineCount = agents.filter(a => getAgentStatus(a) === 'ONLINE').length
-  const offlineCount = agents.length - onlineCount
-  const osDistribution = agents.reduce((acc, agent) => {
-    const os = getAgentOsType(agent)
-    acc[os] = (acc[os] || 0) + 1
-    return acc
-  }, {} as Record<string, number>)
+  const [stats, setStats] = useState({
+    total: 0,
+    online: 0,
+    offline: 0,
+    alerts: 0
+  });
+
+  // Derived state for OS distribution
+  const osData = [
+    { name: 'Linux', value: agents.filter(a => getAgentOsType(a) === 'linux').length },
+    { name: 'Windows', value: agents.filter(a => getAgentOsType(a) === 'windows').length },
+    { name: 'macOS', value: agents.filter(a => getAgentOsType(a) === 'darwin' || getAgentOsType(a) === 'macos').length },
+  ].filter(d => d.value > 0);
+
+  const COLORS = ['rgb(248, 113, 113)', '#fca5a5', '#fecaca'];
+
+  // Mock data for activity (would come from backend history normally)
+  const activityData = [
+    { name: '00:00', queries: 40, alerts: 2 },
+    { name: '04:00', queries: 30, alerts: 1 },
+    { name: '08:00', queries: 120, alerts: 5 },
+    { name: '12:00', queries: 180, alerts: 8 },
+    { name: '16:00', queries: 150, alerts: 4 },
+    { name: '20:00', queries: 90, alerts: 3 },
+    { name: '23:59', queries: 50, alerts: 2 },
+  ];
+
+  useEffect(() => {
+    const onlineCount = agents.filter(a => getAgentStatus(a) === 'ONLINE').length;
+    setStats({
+      total: agents.length,
+      online: onlineCount,
+      offline: agents.length - onlineCount,
+      alerts: 0 // Mock for now
+    });
+  }, [agents]);
 
   return (
-    <div className="dashboard">
+    <div className="dashboard-container">
       <div className="dashboard-header">
-        <h2>Security Overview</h2>
-        <span className="dashboard-subtitle">Real-time endpoint monitoring</span>
+        <h1>Security Overview</h1>
       </div>
 
-      <div className="metrics-grid">
-        <div className="metric-card">
-          <div className="metric-icon blue">
-            <i className="fas fa-server"></i>
+      <div className="dashboard-stats-grid">
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>Total Agents</h3>
+            <div className="value">{stats.total}</div>
           </div>
-          <div className="metric-content">
-            <span className="metric-label">Total Endpoints</span>
-            <span className="metric-value">{agents.length}</span>
-          </div>
-        </div>
-
-        <div className="metric-card">
-          <div className="metric-icon green">
-            <i className="fas fa-check-circle"></i>
-          </div>
-          <div className="metric-content">
-            <span className="metric-label">Online</span>
-            <span className="metric-value">{onlineCount}</span>
-            <span className="metric-change positive">
-              {agents.length > 0 ? Math.round((onlineCount / agents.length) * 100) : 0}%
-            </span>
+          <div className="stat-icon agents">
+            <Users size={24} />
           </div>
         </div>
 
-        <div className="metric-card">
-          <div className="metric-icon red">
-            <i className="fas fa-exclamation-circle"></i>
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>Online</h3>
+            <div className="value">{stats.online}</div>
           </div>
-          <div className="metric-content">
-            <span className="metric-label">Offline</span>
-            <span className="metric-value">{offlineCount}</span>
-            <span className="metric-change negative">
-              {agents.length > 0 ? Math.round((offlineCount / agents.length) * 100) : 0}%
-            </span>
+          <div className="stat-icon online">
+            <Activity size={24} />
           </div>
         </div>
 
-        <div className="metric-card">
-          <div className="metric-icon purple">
-            <i className="fas fa-shield-alt"></i>
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>Offline</h3>
+            <div className="value">{stats.offline}</div>
           </div>
-          <div className="metric-content">
-            <span className="metric-label">Protection Status</span>
-            <span className="metric-value">Active</span>
-            <span className="metric-change positive">100% Coverage</span>
+          <div className="stat-icon offline">
+            <WifiOff size={24} />
+          </div>
+        </div>
+
+        <div className="stat-card">
+          <div className="stat-content">
+            <h3>Active Alerts</h3>
+            <div className="value">{stats.alerts}</div>
+          </div>
+          <div className="stat-icon alerts">
+            <AlertTriangle size={24} />
           </div>
         </div>
       </div>
 
-      <div className="dashboard-grid">
-        <div className="dashboard-card">
-          <div className="card-header">
+      <div className="charts-grid">
+        <div className="chart-card">
+          <div className="chart-header">
+            <h3>Agent Activity (24h)</h3>
+          </div>
+          <div style={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <AreaChart data={activityData}>
+                <defs>
+                  <linearGradient id="colorQueries" x1="0" y1="0" x2="0" y2="1">
+                    <stop offset="5%" stopColor="rgb(248, 113, 113)" stopOpacity={0.8}/>
+                    <stop offset="95%" stopColor="rgb(248, 113, 113)" stopOpacity={0}/>
+                  </linearGradient>
+                </defs>
+                <CartesianGrid strokeDasharray="3 3" stroke="#333" />
+                <XAxis dataKey="name" stroke="#888" />
+                <YAxis stroke="#888" />
+                <Tooltip 
+                  contentStyle={{ backgroundColor: '#2d2d2d', border: '1px solid #444' }}
+                  itemStyle={{ color: '#fff' }}
+                />
+                <Area type="monotone" dataKey="queries" stroke="rgb(248, 113, 113)" fillOpacity={1} fill="url(#colorQueries)" />
+              </AreaChart>
+            </ResponsiveContainer>
+          </div>
+        </div>
+
+        <div className="chart-card">
+          <div className="chart-header">
             <h3>OS Distribution</h3>
           </div>
-          <div className="card-body">
-            {Object.entries(osDistribution).map(([os, count]) => (
-              <div key={os} className="distribution-item">
-                <div className="distribution-label">
-                  <i className={`fab fa-${os === 'linux' ? 'linux' : os === 'windows' ? 'windows' : 'apple'}`}></i>
-                  <span>{os.charAt(0).toUpperCase() + os.slice(1)}</span>
-                </div>
-                <div className="distribution-bar">
-                  <div
-                    className="distribution-fill"
-                    style={{
-                      width: `${(count / agents.length) * 100}%`
-                    }}
-                  ></div>
-                </div>
-                <span className="distribution-value">{count}</span>
-              </div>
-            ))}
-          </div>
-        </div>
-
-        <div className="dashboard-card">
-          <div className="card-header">
-            <h3>Recent Activity</h3>
-          </div>
-          <div className="card-body">
-            {agents.length === 0 ? (
-              <div className="empty-activity">No activity to display</div>
-            ) : (
-              agents.slice(0, 5).map((agent) => {
-                const status = getAgentStatus(agent)
-                const isOnline = status === 'ONLINE'
-                const hostname = getAgentHostname(agent)
-                const lastSeen = getAgentLastSeen(agent)
-                return (
-                <div key={getAgentId(agent)} className="activity-item">
-                  <div className="activity-icon">
-                    <i className={`fas fa-${isOnline ? 'check-circle' : 'times-circle'}`}></i>
-                  </div>
-                  <div className="activity-content">
-                    <span className="activity-text">
-                      <strong>{hostname}</strong> is {status.toLowerCase()}
-                    </span>
-                    <span className="activity-time">
-                      {lastSeen ? new Date(lastSeen).toLocaleString() : 'Never'}
-                    </span>
-                  </div>
-                </div>
-                )
-              })
-            )}
+          <div style={{ height: 300 }}>
+            <ResponsiveContainer width="100%" height="100%">
+              <PieChart>
+                <Pie
+                  data={osData}
+                  cx="50%"
+                  cy="50%"
+                  innerRadius={60}
+                  outerRadius={100}
+                  fill="#8884d8"
+                  paddingAngle={5}
+                  dataKey="value"
+                >
+                  {osData.map((entry, index) => (
+                    <Cell key={`cell-${index}`} fill={COLORS[index % COLORS.length]} />
+                  ))}
+                </Pie>
+                <Tooltip 
+                   contentStyle={{ backgroundColor: '#2d2d2d', border: '1px solid #444' }}
+                   itemStyle={{ color: '#fff' }}
+                />
+                <Legend />
+              </PieChart>
+            </ResponsiveContainer>
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
-

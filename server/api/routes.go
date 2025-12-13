@@ -34,6 +34,14 @@ func RegisterBackendRoutes(r *gin.Engine) {
 		protected.GET("/agents", GetAgents)
 		protected.POST("/agents/:id/osquery", QueueOsqueryCommand)
 		protected.GET("/agents/:id/commands", GetAgentCommands)
+        
+        // Incident Management
+        protected.GET("/incidents", GetIncidents)
+        protected.POST("/incidents", CreateIncident)
+        protected.PUT("/incidents/:id", UpdateIncident)
+        
+        protected.GET("/incidents/:id/comments", GetIncidentComments)
+        protected.POST("/incidents/:id/comments", AddIncidentComment)
 	}
 }
 

@@ -3,6 +3,7 @@ import axios from 'axios'
 import AgentList from './components/AgentList'
 import AgentModal from './components/AgentModal'
 import Dashboard from './components/Dashboard'
+import Incidents from './components/Incidents'
 import Login from './auth/Login'
 import { useAuth } from './auth/AuthContext'
 import './App.css'
@@ -40,7 +41,7 @@ function App() {
   const [agents, setAgents] = useState<Agent[]>([])
   const [selectedAgent, setSelectedAgent] = useState<Agent | null>(null)
   const [loading, setLoading] = useState(true)
-  const [activeTab, setActiveTab] = useState<'dashboard' | 'agents'>('dashboard')
+  const [activeTab, setActiveTab] = useState<'dashboard' | 'agents' | 'incidents'>('dashboard')
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
   const fetchAgents = useCallback(async () => {
@@ -140,6 +141,16 @@ function App() {
               <span>Dashboard</span>
             </button>
             <button
+              className={`menu-item ${activeTab === 'incidents' ? 'active' : ''}`}
+              onClick={() => {
+                setActiveTab('incidents')
+                setSidebarOpen(false)
+              }}
+            >
+              <i className="fas fa-shield-alt"></i>
+              <span>Incidents</span>
+            </button>
+            <button
               className={`menu-item ${activeTab === 'agents' ? 'active' : ''}`}
               onClick={() => {
                 setActiveTab('agents')
@@ -153,9 +164,11 @@ function App() {
         </div>
 
         <div className="content-area">
-          {activeTab === 'dashboard' ? (
-            <Dashboard agents={agents} />
-          ) : (
+          {activeTab === 'dashboard' && <Dashboard agents={agents} />}
+          
+          {activeTab === 'incidents' && <Incidents />}
+
+          {activeTab === 'agents' && (
             <>
               <div className="page-header">
                 <h2>Endpoints</h2>
@@ -191,3 +204,4 @@ function App() {
 }
 
 export default App
+

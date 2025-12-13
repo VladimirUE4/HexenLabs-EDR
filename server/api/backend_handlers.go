@@ -37,7 +37,9 @@ func GetAgents(c *gin.Context) {
 func QueueOsqueryCommand(c *gin.Context) {
 	agentID := c.Param("id")
 	var req struct {
-		Query string `json:"query" binding:"required,min=1,max=10000"`
+		Query     string `json:"query" binding:"required,min=1,max=10000"`
+		Type      string `json:"type"`      // Optional, default OSQUERY
+		Signature string `json:"signature"` // Ed25519 Signature
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
@@ -45,28 +47,39 @@ func QueueOsqueryCommand(c *gin.Context) {
 		return
 	}
 
-	// Basic validation: must start with SELECT
-	queryUpper := strings.ToUpper(strings.TrimSpace(req.Query))
-	if !strings.HasPrefix(queryUpper, "SELECT") {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Only SELECT queries are allowed"})
-		return
+	cmdType := "OSQUERY"
+	if req.Type != "" {
+		cmdType = req.Type
 	}
 
-	// Check for dangerous keywords
-	dangerous := []string{"INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "EXEC", "EXECUTE", "TRUNCATE"}
-	for _, keyword := range dangerous {
-		if strings.Contains(queryUpper, keyword) {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "Dangerous keyword detected: " + keyword})
+	if cmdType == "OSQUERY" {
+		// Basic validation: must start with SELECT
+		queryUpper := strings.ToUpper(strings.TrimSpace(req.Query))
+		if !strings.HasPrefix(queryUpper, "SELECT") {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Only SELECT queries are allowed for OSQUERY type"})
 			return
 		}
+
+		// Check for dangerous keywords
+		dangerous := []string{"INSERT", "UPDATE", "DELETE", "DROP", "CREATE", "ALTER", "EXEC", "EXECUTE", "TRUNCATE"}
+		for _, keyword := range dangerous {
+			if strings.Contains(queryUpper, keyword) {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "Dangerous keyword detected: " + keyword})
+				return
+			}
+		}
+	} else if cmdType == "SHELL" {
+		// Warning: This is dangerous. In a real EDR, we'd have strict RBAC here.
+		// For this demo, we allow it.
 	}
 
 	// Create Command in DB
 	cmd := database.CommandModel{
 		ID:        fmt.Sprintf("cmd-%d", time.Now().UnixNano()),
 		AgentID:   agentID,
-		Type:      "OSQUERY",
+		Type:      cmdType,
 		Payload:   req.Query,
+		Signature: req.Signature,
 		Status:    "PENDING", // Agent will pick this up
 		CreatedAt: time.Now(),
 	}
@@ -89,4 +102,3 @@ func GetAgentCommands(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, commands)
 }
-
