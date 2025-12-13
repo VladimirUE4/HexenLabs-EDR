@@ -10,14 +10,30 @@ import './App.css'
 const API_BASE = '/api'
 
 export interface Agent {
-  ID: string
-  Hostname: string
-  OsType: string
-  OsVersion: string
-  IpAddress: string
-  Status: string
-  LastSeen: string
+  id?: string
+  ID?: string
+  hostname?: string
+  Hostname?: string
+  os_type?: string
+  OsType?: string
+  os_version?: string
+  OsVersion?: string
+  ip_address?: string
+  IpAddress?: string
+  status?: string
+  Status?: string
+  last_seen?: string
+  LastSeen?: string
 }
+
+// Helper functions to access agent properties (handles both snake_case and PascalCase)
+export const getAgentId = (agent: Agent) => agent.ID || agent.id || ''
+export const getAgentHostname = (agent: Agent) => agent.Hostname || agent.hostname || 'Unknown'
+export const getAgentOsType = (agent: Agent) => agent.OsType || agent.os_type || 'unknown'
+export const getAgentOsVersion = (agent: Agent) => agent.OsVersion || agent.os_version || ''
+export const getAgentIpAddress = (agent: Agent) => agent.IpAddress || agent.ip_address || ''
+export const getAgentStatus = (agent: Agent) => agent.Status || agent.status || 'OFFLINE'
+export const getAgentLastSeen = (agent: Agent) => agent.LastSeen || agent.last_seen || ''
 
 function App() {
   const { isAuthenticated, loading: authLoading, logout } = useAuth()
@@ -59,7 +75,7 @@ function App() {
     return <Login />
   }
 
-  const onlineCount = agents.filter(a => a.Status === 'ONLINE').length
+  const onlineCount = agents.filter(a => getAgentStatus(a) === 'ONLINE').length
   const offlineCount = agents.length - onlineCount
 
   return (

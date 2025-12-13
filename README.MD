@@ -100,6 +100,8 @@ make build-agent build-server
 - ✅ PostgreSQL persistence
 
 ### Phase 2: Security & Hardening 
+- [ ] mTLS
+- [ ] gRPC
 - [ ] Ed25519 command signing
 - [ ] Agent auto-update mechanism (hot reload)
 - [ ] Self-protection (prevent agent termination)

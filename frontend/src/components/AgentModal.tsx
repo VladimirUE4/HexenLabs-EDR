@@ -1,7 +1,7 @@
 import { useState, useEffect } from 'react'
 import axios from 'axios'
 import DOMPurify from 'dompurify'
-import { Agent } from '../App'
+import { Agent, getAgentId, getAgentHostname, getAgentOsType } from '../App'
 import './AgentModal.css'
 
 interface AgentModalProps {
@@ -23,9 +23,11 @@ export default function AgentModal({ agent, onClose }: AgentModalProps) {
   const [query, setQuery] = useState('SELECT pid, name, path FROM processes LIMIT 5;')
   const [loading, setLoading] = useState(false)
 
+  const agentId = getAgentId(agent)
+  
   const fetchCommands = async () => {
     try {
-      const res = await axios.get<Command[]>(`/api/agents/${agent.ID}/commands`)
+      const res = await axios.get<Command[]>(`/api/agents/${agentId}/commands`)
       setCommands(res.data)
     } catch (err) {
       console.error('Failed to fetch commands:', err)
@@ -36,14 +38,14 @@ export default function AgentModal({ agent, onClose }: AgentModalProps) {
     fetchCommands()
     const interval = setInterval(fetchCommands, 2000)
     return () => clearInterval(interval)
-  }, [agent.ID])
+  }, [agentId])
 
   const executeQuery = async () => {
     if (!query.trim()) return
 
     setLoading(true)
     try {
-      await axios.post(`/api/agents/${agent.ID}/osquery`, { query })
+      await axios.post(`/api/agents/${agentId}/osquery`, { query })
       await fetchCommands()
     } catch (err) {
       console.error('Failed to execute query:', err)
@@ -58,11 +60,11 @@ export default function AgentModal({ agent, onClose }: AgentModalProps) {
         <div className="modal-header-xdr">
           <div className="modal-header-left">
             <div className="modal-agent-icon">
-              <i className={`fab fa-${agent.OsType === 'linux' ? 'linux' : agent.OsType === 'windows' ? 'windows' : 'apple'}`}></i>
+              <i className={`fab fa-${getAgentOsType(agent) === 'linux' ? 'linux' : getAgentOsType(agent) === 'windows' ? 'windows' : 'apple'}`}></i>
             </div>
             <div>
-              <h3>{agent.Hostname}</h3>
-              <span className="modal-agent-id">{agent.ID}</span>
+              <h3>{getAgentHostname(agent)}</h3>
+              <span className="modal-agent-id">{agentId}</span>
             </div>
           </div>
           <button className="close-btn-xdr" onClick={onClose}>

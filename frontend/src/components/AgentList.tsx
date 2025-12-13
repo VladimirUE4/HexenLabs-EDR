@@ -1,4 +1,5 @@
 import type { Agent } from '../App';
+import { getAgentId, getAgentHostname, getAgentOsType, getAgentOsVersion, getAgentIpAddress, getAgentStatus, getAgentLastSeen } from '../App';
 import './AgentList.css';
 
 interface AgentListProps {
@@ -20,16 +21,24 @@ export default function AgentList({ agents, onSelectAgent }: AgentListProps) {
   return (
     <div className="agents-grid">
       {agents.map((agent) => {
-        const lastSeen = new Date(agent.LastSeen)
-        const isOnline = agent.Status === 'ONLINE'
+        const lastSeenStr = getAgentLastSeen(agent)
+        const lastSeen = lastSeenStr ? new Date(lastSeenStr) : new Date(0)
+        const status = getAgentStatus(agent)
+        const isOnline = status === 'ONLINE'
         const timeSince = Math.floor((Date.now() - lastSeen.getTime()) / 1000)
         const timeAgo = timeSince < 60 ? `${timeSince}s ago` : 
                        timeSince < 3600 ? `${Math.floor(timeSince / 60)}m ago` :
                        `${Math.floor(timeSince / 3600)}h ago`
 
+        const agentId = getAgentId(agent)
+        const hostname = getAgentHostname(agent)
+        const osType = getAgentOsType(agent)
+        const osVersion = getAgentOsVersion(agent)
+        const ipAddress = getAgentIpAddress(agent)
+
         return (
           <div
-            key={agent.ID}
+            key={agentId}
             className={`agent-card-xdr ${isOnline ? 'online' : 'offline'}`}
             onClick={() => onSelectAgent(agent)}
           >
@@ -40,21 +49,21 @@ export default function AgentList({ agents, onSelectAgent }: AgentListProps) {
               </div>
               <div className="agent-info-main">
                 <h3 className="agent-hostname">
-                  <i className={`fab fa-${agent.OsType === 'linux' ? 'linux' : agent.OsType === 'windows' ? 'windows' : 'apple'}`}></i>
-                  {agent.Hostname}
+                  <i className={`fab fa-${osType === 'linux' ? 'linux' : osType === 'windows' ? 'windows' : 'apple'}`}></i>
+                  {hostname}
                 </h3>
-                <span className="agent-id">{agent.ID.substring(0, 8)}...</span>
+                <span className="agent-id">{agentId.substring(0, 8)}...</span>
               </div>
             </div>
 
             <div className="agent-card-body">
               <div className="agent-metric">
                 <span className="metric-label">OS</span>
-                <span className="metric-value">{agent.OsType} {agent.OsVersion}</span>
+                <span className="metric-value">{osType} {osVersion}</span>
               </div>
               <div className="agent-metric">
                 <span className="metric-label">IP Address</span>
-                <span className="metric-value">{agent.IpAddress}</span>
+                <span className="metric-value">{ipAddress}</span>
               </div>
               <div className="agent-metric">
                 <span className="metric-label">Last Seen</span>
@@ -64,7 +73,7 @@ export default function AgentList({ agents, onSelectAgent }: AgentListProps) {
 
             <div className="agent-card-footer">
               <span className={`status-badge ${isOnline ? 'online' : 'offline'}`}>
-                {agent.Status}
+                {status}
               </span>
             </div>
           </div>

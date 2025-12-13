@@ -12,21 +12,29 @@ import (
 var DB *gorm.DB
 
 type AgentModel struct {
-	ID        string    `gorm:"primaryKey" json:"id"`
-	Hostname  string    `json:"hostname"`
-	OsType    string    `json:"os_type"`
-	IpAddress string    `json:"ip_address"`
-	LastSeen  time.Time `json:"last_seen"`
+	ID         string     `gorm:"primaryKey" json:"id"`
+	Hostname   string     `json:"hostname"`
+	OsType     string     `json:"os_type"`
+	OsVersion  string     `json:"os_version"`
+	IpAddress  string     `json:"ip_address"`
+	AgentName  string     `json:"agent_name"`
+	AgentGroup string     `json:"agent_group"`
+	Status     string     `json:"status"`
+	LastSeen   time.Time  `json:"last_seen"`
+	CreatedAt  *time.Time `json:"created_at"`
 }
 
 type CommandModel struct {
-	ID        string    `gorm:"primaryKey" json:"id"`
-	AgentID   string    `json:"agent_id"`
-	Type      string    `json:"type"`
-	Payload   string    `json:"payload"`
-	Status    string    `json:"status"`
-	Output    string    `json:"output"`
-	CreatedAt time.Time `json:"created_at"`
+	ID           string     `gorm:"primaryKey" json:"id"`
+	AgentID      string     `json:"agent_id"`
+	Type         string     `json:"type"`
+	Payload      string     `json:"payload"`
+	Status       string     `json:"status"`
+	Output       string     `json:"output"`
+	ResultOutput string     `json:"result_output"`
+	ErrorMessage string     `json:"error_message"`
+	CreatedAt    time.Time  `json:"created_at"`
+	CompletedAt  *time.Time `json:"completed_at"`
 }
 
 func Connect() {

@@ -1,4 +1,4 @@
-import { Agent } from '../App'
+import { Agent, getAgentId, getAgentHostname, getAgentOsType, getAgentStatus, getAgentLastSeen } from '../App'
 import './Dashboard.css'
 
 interface DashboardProps {
@@ -6,10 +6,11 @@ interface DashboardProps {
 }
 
 export default function Dashboard({ agents }: DashboardProps) {
-  const onlineCount = agents.filter(a => a.Status === 'ONLINE').length
+  const onlineCount = agents.filter(a => getAgentStatus(a) === 'ONLINE').length
   const offlineCount = agents.length - onlineCount
   const osDistribution = agents.reduce((acc, agent) => {
-    acc[agent.OsType] = (acc[agent.OsType] || 0) + 1
+    const os = getAgentOsType(agent)
+    acc[os] = (acc[os] || 0) + 1
     return acc
   }, {} as Record<string, number>)
 
@@ -103,21 +104,27 @@ export default function Dashboard({ agents }: DashboardProps) {
             {agents.length === 0 ? (
               <div className="empty-activity">No activity to display</div>
             ) : (
-              agents.slice(0, 5).map((agent) => (
-                <div key={agent.ID} className="activity-item">
+              agents.slice(0, 5).map((agent) => {
+                const status = getAgentStatus(agent)
+                const isOnline = status === 'ONLINE'
+                const hostname = getAgentHostname(agent)
+                const lastSeen = getAgentLastSeen(agent)
+                return (
+                <div key={getAgentId(agent)} className="activity-item">
                   <div className="activity-icon">
-                    <i className={`fas fa-${agent.Status === 'ONLINE' ? 'check-circle' : 'times-circle'}`}></i>
+                    <i className={`fas fa-${isOnline ? 'check-circle' : 'times-circle'}`}></i>
                   </div>
                   <div className="activity-content">
                     <span className="activity-text">
-                      <strong>{agent.Hostname}</strong> is {agent.Status.toLowerCase()}
+                      <strong>{hostname}</strong> is {status.toLowerCase()}
                     </span>
                     <span className="activity-time">
-                      {new Date(agent.LastSeen).toLocaleString()}
+                      {lastSeen ? new Date(lastSeen).toLocaleString() : 'Never'}
                     </span>
                   </div>
                 </div>
-              ))
+                )
+              })
             )}
           </div>
         </div>

@@ -30,6 +30,7 @@ func AgentHeartbeat(c *gin.Context) {
 	var agent database.AgentModel
 	if err := database.DB.First(&agent, "id = ?", req.ID).Error; err != nil {
 		// Create new agent
+		now := time.Now()
 		newAgent := database.AgentModel{
 			ID:         req.ID,
 			Hostname:   req.Hostname,
@@ -40,7 +41,7 @@ func AgentHeartbeat(c *gin.Context) {
 			AgentGroup: req.Group,
 			LastSeen:   time.Now(),
 			Status:     "ONLINE",
-			CreatedAt:  time.Now(),
+			CreatedAt:  &now,
 		}
 		database.DB.Create(&newAgent)
 	} else {

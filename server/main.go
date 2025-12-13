@@ -106,6 +106,23 @@ func loadTLSCredentials() (*tls.Config, error) {
 	return config, nil
 }
 
+func loadTLSCredentialsForFrontend() (*tls.Config, error) {
+	// Load Server Cert/Key
+	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
+	if err != nil {
+		return nil, fmt.Errorf("failed to load key pair: %s", err)
+	}
+
+	// Create TLS Config for frontend (no client cert required)
+	config := &tls.Config{
+		Certificates: []tls.Certificate{cert},
+		MinVersion:   tls.VersionTLS13,
+		ClientAuth:   tls.NoClientCert, // Explicitly disable client cert requirement
+	}
+
+	return config, nil
+}
+
 func main() {
 	fmt.Println("HexenLabs EDR Server Starting...")
 
@@ -140,15 +157,22 @@ func main() {
 	// 3. Start HTTP API Server (Main Thread)
 	// Setup Gin
 	r := gin.Default()
-	api.RegisterRoutes(r)
+	api.RegisterBackendRoutes(r)
+	api.RegisterGatewayRoutes(r)
+
+	// Use TLS config without client cert requirement for frontend
+	frontendTLSConfig, err := loadTLSCredentialsForFrontend()
+	if err != nil {
+		log.Fatalf("Failed to load frontend TLS credentials: %v", err)
+	}
 
 	server := &http.Server{
 		Addr:      httpPort,
 		Handler:   r,
-		TLSConfig: tlsConfig,
+		TLSConfig: frontendTLSConfig,
 	}
 
-	fmt.Printf("HTTP API Listening on %s (mTLS enabled)\n", httpPort)
+	fmt.Printf("HTTP API Listening on %s (TLS enabled, no client cert for frontend)\n", httpPort)
 	if err := server.ListenAndServeTLS("", ""); err != nil {
 		log.Fatalf("failed to serve HTTP: %v", err)
 	}
