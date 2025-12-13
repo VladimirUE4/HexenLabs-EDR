@@ -1,64 +1,63 @@
 #!/bin/bash
 
-# Fonction pour tout arrêter proprement
+# Graceful shutdown function
 cleanup() {
-    echo "🛑 Arrêt des services..."
+    echo "🛑 Stopping services..."
     kill $(jobs -p) 2>/dev/null
     exit
 }
 
-# Intercepter Ctrl+C
+# Trap Ctrl+C
 trap cleanup SIGINT SIGTERM
 
-echo "🚀 Démarrage de HexenLabs EDR..."
+echo "🚀 Starting HexenLabs EDR..."
 
-# 1. Compilation du serveur
-echo "📦 Compilation du serveur..."
+# 1. Compile Server
+echo "📦 Compiling Server..."
 cd server
 go build -o bin/server main.go
 if [ $? -ne 0 ]; then
-    echo "❌ Erreur de compilation du serveur"
+    echo "❌ Server compilation failed"
     exit 1
 fi
 cd ..
 
-# 2. Compilation de l'agent
-echo "📦 Compilation de l'agent..."
+# 2. Compile Agent
+echo "📦 Compiling Agent..."
 cd agent
 zig build
 if [ $? -ne 0 ]; then
-    echo "❌ Erreur de compilation de l'agent"
+    echo "❌ Agent compilation failed"
     exit 1
 fi
 cd ..
 
-# 3. Lancement du serveur
-echo "🌐 Lancement du serveur..."
+# 3. Start Server
+echo "🌐 Starting Server..."
 cd server
 ./bin/server &
 SERVER_PID=$!
 cd ..
 
-# Attendre que le serveur démarre
+# Wait for DB connection
 sleep 2
 
-# 4. Lancement du frontend
-echo "🎨 Lancement du frontend..."
+# 4. Start Frontend
+echo "🎨 Starting Frontend..."
 cd frontend
 npm run dev > /dev/null 2>&1 &
 FRONT_PID=$!
 cd ..
 
-echo "✅ Serveur API: https://localhost:8080"
-echo "✅ Gateway Agents: https://localhost:8443 (mTLS)"
+echo "✅ API Server: https://localhost:8080"
+echo "✅ Agent Gateway: https://localhost:8443 (mTLS)"
 echo "✅ Frontend: http://localhost:3000"
 echo ""
 
-# 5. Lancement de l'agent (optionnel, décommenter pour lancer automatiquement)
-echo "🕵️  Lancement de l'agent..."
+# 5. Start Agent (Runs in foreground)
+echo "🕵️  Starting Agent..."
 cd agent
 ./zig-out/bin/hexen-agent
-# Si vous voulez lancer plusieurs agents ou tester manuellement, commentez la ligne ci-dessus
 
-# Attendre la fin des processus
+# Wait for background processes (if agent is backgrounded)
 wait $SERVER_PID $FRONT_PID
