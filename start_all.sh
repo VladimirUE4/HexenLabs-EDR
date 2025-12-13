@@ -57,7 +57,7 @@ echo ""
 # 5. Start Agent (Runs in foreground)
 echo "🕵️  Starting Agent..."
 cd agent
-./zig-out/bin/hexen-agent
+sudo ./zig-out/bin/hexen-agent
 
 # Wait for background processes (if agent is backgrounded)
 wait $SERVER_PID $FRONT_PID

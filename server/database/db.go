@@ -29,6 +29,7 @@ type CommandModel struct {
 	AgentID      string     `json:"agent_id"`
 	Type         string     `json:"type"`
 	Payload      string     `json:"payload"`
+	Signature    string     `json:"signature"` // Ed25519 Signature
 	Status       string     `json:"status"`
 	Output       string     `json:"output"`
 	ResultOutput string     `json:"result_output"`
@@ -36,6 +37,27 @@ type CommandModel struct {
 	CreatedAt    time.Time  `json:"created_at"`
 	CompletedAt  *time.Time `json:"completed_at"`
 }
+
+type IncidentModel struct {
+    ID          string     `gorm:"primaryKey" json:"id"`
+    Title       string     `json:"title"`
+    Description string     `json:"description"`
+    Severity    string     `json:"severity"` // LOW, MEDIUM, HIGH, CRITICAL
+    Status      string     `json:"status"`   // OPEN, ASSIGNED, RESOLVED, CLOSED
+    AssignedTo  string     `json:"assigned_to"` // User name or ID
+    CreatedAt   time.Time  `json:"created_at"`
+    UpdatedAt   time.Time  `json:"updated_at"`
+}
+
+type IncidentCommentModel struct {
+    ID         string    `gorm:"primaryKey" json:"id"`
+    IncidentID string    `gorm:"index" json:"incident_id"`
+    Author     string    `json:"author"`
+    Content    string    `json:"content"`
+    CreatedAt  time.Time `json:"created_at"`
+}
+
+
 
 func Connect() {
 	dsn := "host=localhost user=postgres password=postgres dbname=hexen_edr port=5432 sslmode=disable"
@@ -46,7 +68,7 @@ func Connect() {
 	}
 
 	// Auto Migrate
-	err = DB.AutoMigrate(&AgentModel{}, &CommandModel{})
+	err = DB.AutoMigrate(&AgentModel{}, &CommandModel{}, &IncidentModel{}, &IncidentCommentModel{})
 	if err != nil {
 		log.Printf("Failed to migrate database: %v", err)
 	}

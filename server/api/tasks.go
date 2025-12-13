@@ -2,6 +2,7 @@ package api
 
 import (
 	"encoding/base64"
+	"fmt"
 	"net/http"
 	"time"
 
@@ -108,18 +109,23 @@ func PostTaskResult(c *gin.Context) {
 		decoded, err := base64.StdEncoding.DecodeString(req.OutputB64)
 		if err == nil {
 			cmd.ResultOutput = string(decoded)
+			fmt.Printf("[DEBUG] Received result for cmd %s: %d bytes decoded\n", cmdID, len(decoded))
 		} else {
 			cmd.ResultOutput = "Error decoding base64 output"
+			fmt.Printf("[DEBUG] Failed to decode base64 for cmd %s: %v\n", cmdID, err)
 		}
-	} else {
+	} else if req.Output != "" {
 		cmd.ResultOutput = req.Output
+		fmt.Printf("[DEBUG] Received result for cmd %s: %d bytes (plain)\n", cmdID, len(req.Output))
 	}
 
 	cmd.ErrorMessage = req.Error
 	if req.Error != "" {
 		cmd.Status = "ERROR"
+		fmt.Printf("[DEBUG] Command %s marked as ERROR: %s\n", cmdID, req.Error)
 	} else {
 		cmd.Status = "COMPLETED"
+		fmt.Printf("[DEBUG] Command %s marked as COMPLETED\n", cmdID)
 	}
 	now := time.Now()
 	cmd.CompletedAt = &now
