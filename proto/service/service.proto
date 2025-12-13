@@ -15,9 +15,6 @@ service EDRService {
     // Bidirectional stream for C2
     // Server pushes Commands, Agent pushes CommandResponses
     rpc CommandChannel(stream hexen.command.CommandResponse) returns (stream hexen.command.Command);
-
-    // Explicit polling method for simplicity in MVP (Agent asks "Do you have work?")
-    rpc GetPendingCommands(hexen.common.AgentIdentity) returns (hexen.command.Command);
     
     // Simple heartbeat to keep connection alive and update status
     rpc Heartbeat(hexen.common.AgentIdentity) returns (hexen.common.StatusResponse);

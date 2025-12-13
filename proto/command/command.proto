@@ -20,7 +20,6 @@ message Command {
         FileOpCommand file_op = 6;
         ProcessKillCommand process_kill = 7;
         IsolationCommand isolation = 8;
-        OsqueryCommand osquery = 9;
     }
 }
 
@@ -31,7 +30,6 @@ enum CommandType {
     CMD_PROCESS_KILL = 3;
     CMD_ISOLATION = 4;
     CMD_AGENT_UPDATE = 5;
-    CMD_OSQUERY = 6;
 }
 
 message ShellCommand {
@@ -54,15 +52,11 @@ message IsolationCommand {
     repeated string allowed_ips = 2; // IPs allowed during isolation (e.g. C2 IP)
 }
 
-message OsqueryCommand {
-    string query = 1; // e.g. "SELECT * FROM processes"
-    int32 timeout_seconds = 2;
-}
-
 message CommandResponse {
     string command_id = 1;
     hexen.common.Status status = 2;
-    string output = 3; // Stdout/Stderr or JSON result from osquery
+    string output = 3; // Stdout/Stderr
     string error_message = 4;
     hexen.common.Timestamp completed_at = 5;
 }
+

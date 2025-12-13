@@ -26,38 +26,22 @@ docker run --name postgres-edr -e POSTGRES_PASSWORD=postgres -e POSTGRES_DB=hexe
 createdb hexen_edr
 ```
 
-### 2. Server (Backend API + Agent Gateway)
+### 2. Server (Backend + Web Panel)
 
 ```bash
 cd server
 go mod download
+go build -o bin/server main.go
 
-# Option A: Using Makefile (recommended)
-make run-all
-
-# Option B: Manual (2 terminals)
-# Terminal 1: Backend API
-go run cmd/backend/main.go
-
-# Terminal 2: Agent Gateway
-PORT=8443 go run cmd/gateway/main.go
+# Configure DB connection in main.go if needed (DSN)
+./bin/server
 ```
 
-Servers start on:
-- **Backend API** : `http://localhost:8080/api` (Frontend)
-- **Agent Gateway** : `http://localhost:8443/api` (Agents)
+Server starts on:
+- **gRPC** : `:50051` (mTLS)
+- **Web Panel** : `http://localhost:8080`
 
-### 3. Frontend (React)
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Frontend runs on `http://localhost:3000` and proxies API requests to the server.
-
-### 4. Agent
+### 3. Agent
 
 ```bash
 # Download osquery (see agent/assets/README.md)
@@ -77,23 +61,16 @@ The agent will automatically appear in the web panel.
 
 ## Usage
 
-1. Start both servers (`make run-all` in root directory, or manually in 2 terminals)
-2. Start the frontend (`npm run dev` in `frontend/` directory)
-3. Open `http://localhost:3000` in your browser
-4. Login with `admin` / `admin` (change in production!)
-5. Click on an agent
-6. Execute Osquery SQL queries (e.g., `SELECT * FROM processes;`)
-7. View results in real-time
-
-**Note**: Agents must be configured to connect to port **8443** (Agent Gateway), not 8080.
+1. Open `http://localhost:8080`
+2. Click on an agent
+3. Execute Osquery SQL queries (e.g., `SELECT * FROM processes;`)
+4. View results in real-time
 
 ## Architecture
 
-- **Agent** : Zig, self-contained (embeds osquery), HTTP communication (port 8443)
-- **Backend API** : Go, REST API for frontend (port 8080), JWT auth
-- **Agent Gateway** : Go, REST API for agents (port 8443), mTLS (to be implemented)
-- **Frontend** : React + TypeScript + Vite
-- **Database** : PostgreSQL (shared)
+- **Agent** : Zig, self-contained (embeds osquery), HTTP communication
+- **Server** : Go, gRPC + REST API, PostgreSQL
+- **Panel** : Vanilla HTML/JS (Bootstrap)
 
 ## Security
 
@@ -115,7 +92,7 @@ make build-agent build-server
 
 ## Roadmap
 
-### Phase 1: base Features (Current)
+### Phase 1: Core Features (Current)
 - ✅ Agent deployment and heartbeat
 - ✅ Osquery integration
 - ✅ Web administration panel
@@ -123,22 +100,18 @@ make build-agent build-server
 - ✅ PostgreSQL persistence
 
 ### Phase 2: Security & Hardening 
-- [ ] mTLS
 - [ ] Ed25519 command signing
 - [ ] Agent auto-update mechanism (hot reload)
 - [ ] Self-protection (prevent agent termination)
 - [ ] Certificate rotation automation
 - [ ] Audit logging (immutable)
-- [ ] Incident Response Team
-- [ ] Quarantine
-- [ ] YARA rule engine integration
-- [ ] Sigma rule support
 
 ### Phase 3: Detection Engine 
 - [ ] Real-time process monitoring
 - [ ] Network connection tracking
 - [ ] File integrity monitoring (FIM)
-- [ ] Forensics
+- [ ] YARA rule engine integration
+- [ ] Sigma rule support
 - [ ] Behavioral detection (ML-based)
 
 ### Phase 4: Response Capabilities 
@@ -149,7 +122,7 @@ make build-agent build-server
 - [ ] Automated incident response playbooks
 
 ### Phase 5: Advanced Features 
-- [ ] Kernel-level monitoring (eBPF on Linux, Kernel Driver on Windows, ESF on macOS) NOT POSSIBLE WITH ZIG FOR NOW ?
+- [ ] Kernel-level monitoring (eBPF on Linux, Kernel Driver on Windows, ESF on macOS)
 - [ ] Memory scanning
 - [ ] Threat intelligence integration
 - [ ] Multi-tenant support

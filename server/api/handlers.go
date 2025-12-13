@@ -73,3 +73,76 @@ func GetAgentCommands(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, commands)
 }
+
+func AgentHeartbeat(c *gin.Context) {
+    var req struct {
+        ID        string `json:"ID"`
+        Hostname  string `json:"Hostname"`
+        OsType    string `json:"OsType"`
+        IpAddress string `json:"IpAddress"`
+    }
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    // Upsert Agent
+    agent := database.AgentModel{
+        ID:        req.ID,
+        Hostname:  req.Hostname,
+        OsType:    req.OsType,
+        IpAddress: req.IpAddress,
+        LastSeen:  time.Now(),
+    }
+    
+    // Use Save (Upsert)
+    if err := database.DB.Save(&agent).Error; err != nil {
+        c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+        return
+    }
+    
+    c.JSON(http.StatusOK, gin.H{"status": "ok"})
+}
+
+func GetNextTask(c *gin.Context) {
+    agentID := c.Param("id")
+    var cmd database.CommandModel
+    
+    // Find first PENDING command
+    result := database.DB.Where("agent_id = ? AND status = ?", agentID, "PENDING").First(&cmd)
+    if result.Error != nil {
+        // No task
+        c.Status(http.StatusNoContent)
+        return
+    }
+    
+    c.JSON(http.StatusOK, cmd)
+}
+
+func PostTaskResult(c *gin.Context) {
+    // cmdID := c.Param("cmd_id")
+    var req struct {
+        OutputB64 string `json:"output_b64"`
+        Error     string `json:"error"`
+    }
+    if err := c.ShouldBindJSON(&req); err != nil {
+        c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+        return
+    }
+    
+    // Update Command
+    cmdID := c.Param("cmd_id")
+    
+    updates := database.CommandModel{
+        Status: "COMPLETED",
+        Output: req.OutputB64, // We save B64 for now
+    }
+    if req.Error != "" {
+        updates.Status = "FAILED"
+        updates.Output = req.Error
+    }
+    
+    database.DB.Model(&database.CommandModel{}).Where("id = ?", cmdID).Updates(updates)
+    
+    c.Status(http.StatusOK)
+}
