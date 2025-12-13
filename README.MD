@@ -1,4 +1,3 @@
-
 <div align="center">
   <img src="https://avatars.githubusercontent.com/u/248723226?s=200&v=4" alt="HexenLabs Logo" width="200"/>
 </div>
@@ -13,6 +12,7 @@ Multi-platform EDR/XDR (Windows, Linux, macOS) with Zig agent and web administra
 - **Go** 1.21+ (for server)
 - **PostgreSQL** 15+ (or Docker)
 - **Protobuf Compiler** (`protoc`)
+- **Libcurl** (dev package) for the agent
 
 ## Quick Setup
 
@@ -38,8 +38,8 @@ go build -o bin/server main.go
 ```
 
 Server starts on:
-- **gRPC** : `:50051` (mTLS)
-- **Web Panel** : `http://localhost:8080`
+- **Agent Gateway** : `:8443` (Strict mTLS) - Agents only
+- **Web API** : `:8080` (TLS) - Frontend only
 
 ### 3. Agent
 
@@ -49,7 +49,7 @@ cd agent/assets/linux/amd64
 curl -L https://pkg.osquery.io/linux/osquery-5.10.2_1.linux_x86_64.tar.gz -o osquery.tar.gz
 tar xzf osquery.tar.gz && cp opt/osquery/bin/osqueryd . && rm -rf opt osquery.tar.gz
 
-# Build agent
+# Build agent (Links against libcurl)
 cd ../../..
 zig build -Doptimize=ReleaseSafe
 
@@ -61,36 +61,25 @@ The agent will automatically appear in the web panel.
 
 ## Usage
 
-1. Open `http://localhost:8080`
-2. Click on an agent
-3. Execute Osquery SQL queries (e.g., `SELECT * FROM processes;`)
-4. View results in real-time
+1. Open `http://localhost:3000` (Frontend)
+2. Login (Default auth needed)
+3. Click on an agent
+4. Execute Osquery SQL queries (e.g., `SELECT * FROM processes;`)
+5. View results in real-time
 
 ## Architecture
 
-- **Agent** : Zig, self-contained (embeds osquery), HTTP communication
-- **Server** : Go, gRPC + REST API, PostgreSQL
-- **Panel** : Vanilla HTML/JS (Bootstrap)
+- **Agent** : Zig + Libcurl, self-contained (embeds osquery), mTLS communication on port 8443.
+- **Server** : Go Monolith with split listeners (API vs Gateway), PostgreSQL.
+- **Panel** : React/Vite.
 
 ## Security
 
-- mTLS 1.3 for Agent ↔ Server (certificates in `pki/`)
-- Signed commands (Ed25519) - To be implemented
-- Input validation on server side
+- **mTLS 1.3 Strict** on port 8443. The server rejects any connection without a valid agent certificate signed by the CA.
+- **TLS 1.3** on port 8080 for the dashboard.
+- **Input validation** on server side.
 
-## Development
-
-```bash
-# Generate Protobuf
-./tools/gen_proto.sh
-
-# Build everything
-make build-agent build-server
-```
-
-
-
-## Roadmap
+## Roadmap & Technical Implementation Strategy
 
 ### Phase 1: Core Features (Current)
 - ✅ Agent deployment and heartbeat
@@ -98,30 +87,37 @@ make build-agent build-server
 - ✅ Web administration panel
 - ✅ Command execution and result retrieval
 - ✅ PostgreSQL persistence
+- ✅ **Secure mTLS Communication** (Zig + Libcurl)
 
 ### Phase 2: Security & Hardening 
-- [ ] mTLS
-- [ ] gRPC
-- [ ] Ed25519 command signing
-- [ ] Agent auto-update mechanism (hot reload)
-- [ ] Self-protection (prevent agent termination)
-- [ ] Certificate rotation automation
-- [ ] Audit logging (immutable)
+- [ ] **Ed25519 Command Signing**: 
+    *   *Implementation*: Server holds Private Key. Signs the JSON command payload. Agent holds Public Key.
+    *   *Check*: Agent validates signature before passing SQL to Osquery. Prevents MITM command injection even if TLS is broken.
+- [ ] **Agent Auto-update**:
+    *   *Implementation*: Double-buffer mechanism. Download new binary to `.tmp`, verify signature, rename over current exe, restart via `execve` (Linux) or separate service watchdog (Windows).
+- [ ] **Anti-Tampering**:
+    *   *Linux*: Use `systemd` InaccessiblePaths.
+    *   *Windows*: ACLs on the service and binary folder.
 
 ### Phase 3: Detection Engine 
-- [ ] Real-time process monitoring
-- [ ] Network connection tracking
-- [ ] File integrity monitoring (FIM)
-- [ ] YARA rule engine integration
+- [ ] **Real-time Process Monitoring**:
+    *   *Tech*: Don't poll. Use Osquery event tables (`process_events`) backed by Auditd (Linux) or OpenBSM (macOS).
+- [ ] **File Integrity Monitoring (FIM)**:
+    *   *Tech*: Osquery `file_events` (inotify/FSEvents). Alert on modification of `/etc/passwd`, `~/.ssh/authorized_keys`, etc.
+- [ ] **YARA Integration**:
+    *   *Tech*: Compile `libyara` in Zig.
+    *   *Logic*: Scan memory of newly spawned processes (hooking via eBPF or simple periodic scan of high-risk PIDs).
 - [ ] Sigma rule support
-- [ ] Behavioral detection (ML-based)
+- [ ] Network connection tracking
 
 ### Phase 4: Response Capabilities 
-- [ ] Process termination
-- [ ] Network isolation
-- [ ] File quarantine
-- [ ] Registry monitoring (Windows)
+- [ ] **Network Isolation**:
+    *   *Linux*: Execute `nftables` / `iptables` rules to drop all OUTPUT except destination `SERVER_IP`.
+    *   *Windows*: Use Windows Filtering Platform (WFP) API to block non-EDR traffic.
+- [ ] **Process Termination**:
+    *   *Tech*: Native syscall `kill` (Linux) / `TerminateProcess` (Windows).
 - [ ] Automated incident response playbooks
+- [ ] Network isolation
 
 ### Phase 5: Advanced Features 
 - [ ] Kernel-level monitoring (eBPF on Linux, Kernel Driver on Windows, ESF on macOS)

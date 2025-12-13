@@ -1,5 +1,12 @@
 const std = @import("std");
 
+pub fn ensureInstalled(allocator: std.mem.Allocator) ![]const u8 {
+    // For now, assume osqueryi is in PATH or current dir
+    // Real implementation would check/download it
+    const path = try allocator.dupe(u8, "osqueryi");
+    return path;
+}
+
 pub const OsqueryResult = struct {
     output: []const u8,
     exit_code: u8,

@@ -1,90 +1,37 @@
 package main
 
 import (
-	"context"
 	"crypto/tls"
 	"crypto/x509"
 	"fmt"
-	"io"
 	"io/ioutil"
 	"log"
-	"net"
 	"net/http"
+	"sync"
 
 	"github.com/gin-gonic/gin"
-	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
-
 	"github.com/hexenlabs/edr/server/api"
 	"github.com/hexenlabs/edr/server/database"
-	pb_common "github.com/hexenlabs/edr/server/proto/common"
-	pb_service "github.com/hexenlabs/edr/server/proto/service"
 )
 
 // Server configuration
 const (
-	grpcPort = ":50051"
-	httpPort = ":8080"
-	caFile   = "../../pki/certs/ca.crt"
-	certFile = "../../pki/certs/server.crt"
-	keyFile  = "../../pki/certs/server.key"
+	apiPort     = ":8080" // Frontend / API
+	gatewayPort = ":8443" // Agent Gateway (mTLS strict)
+	caFile      = "../pki/certs/ca.crt"
+	certFile    = "../pki/certs/server.crt"
+	keyFile     = "../pki/certs/server.key"
 )
 
-// server implements the EDRServiceServer interface
-type server struct {
-	pb_service.UnimplementedEDRServiceServer
-}
-
-// Heartbeat implementation
-func (s *server) Heartbeat(ctx context.Context, agent *pb_common.AgentIdentity) (*pb_common.StatusResponse, error) {
-	log.Printf("Received Heartbeat from Agent: %s (OS: %s)", agent.AgentId, agent.OsType)
-	return &pb_common.StatusResponse{
-		Status:  pb_common.Status_STATUS_SUCCESS,
-		Message: "Heartbeat acknowledged",
-	}, nil
-}
-
-// StreamTelemetry implementation
-func (s *server) StreamTelemetry(stream pb_service.EDRService_StreamTelemetryServer) error {
-	for {
-		batch, err := stream.Recv()
-		if err == io.EOF {
-			return stream.SendAndClose(&pb_common.StatusResponse{
-				Status:  pb_common.Status_STATUS_SUCCESS,
-				Message: "Telemetry batch processed",
-			})
-		}
-		if err != nil {
-			log.Printf("Error receiving telemetry: %v", err)
-			return err
-		}
-
-		log.Printf("Received %d events from agent %s", len(batch.Events), batch.Agent.AgentId)
-	}
-}
-
-// CommandChannel implementation
-func (s *server) CommandChannel(stream pb_service.EDRService_CommandChannelServer) error {
-	for {
-		resp, err := stream.Recv()
-		if err == io.EOF {
-			return nil
-		}
-		if err != nil {
-			return err
-		}
-		log.Printf("[CMD RESPONSE] ID: %s, Status: %s, Output: %s", resp.CommandId, resp.Status, resp.Output)
-	}
-}
-
-func loadTLSCredentials() (*tls.Config, error) {
+// loadTLSConfig creates a TLS config based on role
+func loadTLSConfig(requireClientCert bool) (*tls.Config, error) {
 	// Load Server Cert/Key
 	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to load key pair: %s", err)
 	}
 
-	// Load CA Cert
+	// Load CA Cert for client verification
 	caCert, err := ioutil.ReadFile(caFile)
 	if err != nil {
 		return nil, fmt.Errorf("failed to read ca cert: %s", err)
@@ -95,29 +42,17 @@ func loadTLSCredentials() (*tls.Config, error) {
 		return nil, fmt.Errorf("failed to append ca cert")
 	}
 
-	// Create TLS Config with mTLS
-	config := &tls.Config{
-		Certificates: []tls.Certificate{cert},
-		ClientCAs:    caCertPool,
-		ClientAuth:   tls.RequireAndVerifyClientCert,
-		MinVersion:   tls.VersionTLS13,
-	}
-
-	return config, nil
-}
-
-func loadTLSCredentialsForFrontend() (*tls.Config, error) {
-	// Load Server Cert/Key
-	cert, err := tls.LoadX509KeyPair(certFile, keyFile)
-	if err != nil {
-		return nil, fmt.Errorf("failed to load key pair: %s", err)
-	}
-
-	// Create TLS Config for frontend (no client cert required)
+	// Base Config
 	config := &tls.Config{
 		Certificates: []tls.Certificate{cert},
 		MinVersion:   tls.VersionTLS13,
-		ClientAuth:   tls.NoClientCert, // Explicitly disable client cert requirement
+	}
+
+	if requireClientCert {
+		config.ClientCAs = caCertPool
+		config.ClientAuth = tls.RequireAndVerifyClientCert
+	} else {
+		config.ClientAuth = tls.NoClientCert
 	}
 
 	return config, nil
@@ -129,51 +64,61 @@ func main() {
 	// 0. Initialize DB
 	database.Connect()
 
+	var wg sync.WaitGroup
+	wg.Add(2)
 
-	// 1. Load mTLS Config
-	tlsConfig, err := loadTLSCredentials()
-	if err != nil {
-		log.Fatalf("Failed to load TLS credentials: %v", err)
-	}
-
-	// 2. Start gRPC Server (Goroutine)
+	// 1. Start Agent Gateway (Port 8443, Strict mTLS)
 	go func() {
-		lis, err := net.Listen("tcp", grpcPort)
+		defer wg.Done()
+		
+		// Setup Gin for Gateway
+		r := gin.New()
+		r.Use(gin.Recovery())
+		// We can add custom logger here that includes AgentID from cert
+		
+		api.RegisterGatewayRoutes(r)
+
+		tlsConfig, err := loadTLSConfig(true) // TRUE = Strict mTLS
 		if err != nil {
-			log.Fatalf("failed to listen: %v", err)
+			log.Fatalf("[Gateway] Failed to load TLS: %v", err)
 		}
 
-		// gRPC specific credentials
-		creds := credentials.NewTLS(tlsConfig)
-		s := grpc.NewServer(grpc.Creds(creds))
-		pb_service.RegisterEDRServiceServer(s, &server{})
+		server := &http.Server{
+			Addr:      gatewayPort,
+			Handler:   r,
+			TLSConfig: tlsConfig,
+		}
 
-		fmt.Printf("gRPC Listening on %s (mTLS enabled)\n", grpcPort)
-		if err := s.Serve(lis); err != nil {
-			log.Fatalf("failed to serve gRPC: %v", err)
+		fmt.Printf("🔒 [Gateway] Listening on %s (Strict mTLS 1.3 enabled) - AGENTS ONLY\n", gatewayPort)
+		if err := server.ListenAndServeTLS("", ""); err != nil {
+			log.Fatalf("[Gateway] Failed to serve: %v", err)
 		}
 	}()
 
-	// 3. Start HTTP API Server (Main Thread)
-	// Setup Gin
-	r := gin.Default()
-	api.RegisterBackendRoutes(r)
-	api.RegisterGatewayRoutes(r)
+	// 2. Start Frontend API (Port 8080, Standard TLS)
+	go func() {
+		defer wg.Done()
 
-	// Use TLS config without client cert requirement for frontend
-	frontendTLSConfig, err := loadTLSCredentialsForFrontend()
-	if err != nil {
-		log.Fatalf("Failed to load frontend TLS credentials: %v", err)
-	}
+		// Setup Gin for API
+		r := gin.Default() // Default includes logger
+		api.RegisterBackendRoutes(r)
 
-	server := &http.Server{
-		Addr:      httpPort,
-		Handler:   r,
-		TLSConfig: frontendTLSConfig,
-	}
+		tlsConfig, err := loadTLSConfig(false) // FALSE = No Client Cert
+		if err != nil {
+			log.Fatalf("[API] Failed to load TLS: %v", err)
+		}
 
-	fmt.Printf("HTTP API Listening on %s (TLS enabled, no client cert for frontend)\n", httpPort)
-	if err := server.ListenAndServeTLS("", ""); err != nil {
-		log.Fatalf("failed to serve HTTP: %v", err)
-	}
+		server := &http.Server{
+			Addr:      apiPort,
+			Handler:   r,
+			TLSConfig: tlsConfig,
+		}
+
+		fmt.Printf("🌍 [API] Listening on %s (TLS enabled) - FRONTEND\n", apiPort)
+		if err := server.ListenAndServeTLS("", ""); err != nil {
+			log.Fatalf("[API] Failed to serve: %v", err)
+		}
+	}()
+
+	wg.Wait()
 }

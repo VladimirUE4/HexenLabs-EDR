@@ -65,10 +65,18 @@ func GetNextTask(c *gin.Context) {
 	var cmd database.CommandModel
 	
 	// Find oldest PENDING command
-	if err := database.DB.Where("agent_id = ? AND status = ?", agentID, "PENDING").Order("created_at asc").First(&cmd).Error; err != nil {
-		c.Status(http.StatusNoContent) // No work
+	var cmds []database.CommandModel
+	if err := database.DB.Where("agent_id = ? AND status = ?", agentID, "PENDING").Order("created_at asc").Limit(1).Find(&cmds).Error; err != nil {
+		c.Status(http.StatusInternalServerError)
 		return
 	}
+
+	if len(cmds) == 0 {
+		c.Status(http.StatusNoContent)
+		return
+	}
+	
+	cmd = cmds[0]
 
 	// Mark as SENT
 	cmd.Status = "SENT"

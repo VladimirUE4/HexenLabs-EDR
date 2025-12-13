@@ -13,6 +13,10 @@ pub fn build(b: *std.Build) void {
         }),
     });
 
+    // Link System Libraries for Curl/OpenSSL
+    exe.linkLibC();
+    exe.linkSystemLibrary("curl");
+
     b.installArtifact(exe);
 
     const run_cmd = b.addRunArtifact(exe);
